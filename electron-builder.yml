@@ -1,0 +1,85 @@
+appId: io.github.mashourloo.marmalade
+productName: Marmalade
+copyright: Copyright © 2026 mohammad ashourloo
+
+directories:
+  buildResources: build
+  output: dist
+
+files:
+  - out/**
+  - package.json
+  - '!**/node_modules/better-sqlite3/{deps,src,build}/**'
+
+asar: true
+# A .node binary cannot be dlopen'd from inside an asar archive.
+asarUnpack:
+  - '**/node_modules/better-sqlite3/**'
+
+# better-sqlite3 13 ships N-API prebuilds that load unchanged under Electron 44,
+# so no native rebuild step is needed (and node-gyp cannot run from a path
+# containing a space anyway).
+npmRebuild: false
+nodeGypRebuild: false
+
+win:
+  icon: build/icon.ico
+  target:
+    - target: nsis
+      arch: [x64]
+  artifactName: ${productName}-${version}-setup.${ext}
+  # Releases are unsigned; SmartScreen warns on first run. electron-builder will
+  # pick up CSC_LINK / CSC_KEY_PASSWORD from the environment if anyone wants to
+  # sign their own build.
+  signAndEditExecutable: true
+
+fileAssociations:
+  - ext: pdf
+    # `name` becomes the registry ProgID, so it must be unique to this app —
+    # a generic value like "PDF Document" would collide with other PDF readers.
+    # `description` is what Explorer shows as the file type.
+    name: Marmalade.Document.pdf
+    description: PDF Document
+    icon: build/pdf.ico
+
+linux:
+  icon: build/icon.png
+  category: Office
+  synopsis: Read, highlight and annotate PDF documents
+  description: >-
+    A PDF reader with multi-colour highlighting, notes attached to highlights,
+    in-document search, outline navigation and dimmed reading modes. Annotations
+    are stored alongside the file rather than inside it, so the original PDF is
+    never modified.
+  maintainer: mohammad ashourloo <moash76@gmail.com>
+  target:
+    # AppImage runs on any distribution without installing anything; the .deb is
+    # the native package for Ubuntu and Debian.
+    - AppImage
+    - deb
+  # Registers the app as a PDF handler in the desktop environment.
+  mimeTypes:
+    - application/pdf
+  desktop:
+    entry:
+      Categories: Office;Viewer;
+      Keywords: pdf;reader;annotate;highlight;
+      # Lets the window manager match the window to this .desktop entry.
+      StartupWMClass: marmalade
+
+nsis:
+  # Required for NSIS file associations to register.
+  perMachine: true
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Marmalade
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+  installerHeaderIcon: build/icon.ico
+  # Highlights and notes live in %APPDATA%, and are deliberately left in place on
+  # uninstall so that reinstalling does not throw away the user's annotations.
+  deleteAppDataOnUninstall: false
+  menuCategory: false
+  runAfterFinish: true

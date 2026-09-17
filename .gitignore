@@ -1,0 +1,15 @@
+node_modules/
+out/
+dist/
+*.log
+.DS_Store
+smoke-out/
+cjk-out/
+packaged-out/
+
+# Signing material must never be committed
+*.pfx
+*.p12
+
+# TypeScript incremental build info
+*.tsbuildinfo

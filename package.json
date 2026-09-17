@@ -1,0 +1,52 @@
+{
+  "name": "marmalade",
+  "productName": "Marmalade",
+  "version": "1.1.0",
+  "description": "Marmalade — a Windows PDF reader with highlighting, notes and an eye-protection reading mode",
+  "main": "./out/main/index.js",
+  "author": {
+    "name": "mohammad ashourloo",
+    "email": "moash76@gmail.com"
+  },
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "dev": "electron-vite dev",
+    "start": "electron-vite preview",
+    "build": "npm run typecheck && electron-vite build",
+    "build:win": "npm run build && electron-builder --win",
+    "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
+    "typecheck:web": "tsc --noEmit -p tsconfig.web.json",
+    "typecheck": "npm run typecheck:node && npm run typecheck:web",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "verify:smoke": "node scripts/smoke.mjs",
+    "verify:cjk": "node scripts/cjk-check.mjs",
+    "verify:packaged": "node scripts/packaged-check.mjs",
+    "verify:mouse": "node scripts/real-mouse-check.mjs",
+    "icons": "python scripts/make-icons.py",
+    "verify:assoc": "node scripts/association-check.mjs",
+    "build:linux": "npm run build && electron-builder --linux",
+    "build:mac": "npm run build && electron-builder --mac"
+  },
+  "dependencies": {
+    "better-sqlite3": "^13.0.3",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^22.13.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^5.2.0",
+    "electron": "^44.4.1",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^5.0.0",
+    "pdfjs-dist": "^6.3.289",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "typescript": "~5.9.3",
+    "vite": "^7.3.6",
+    "vitest": "^5.0.1"
+  }
+}
