@@ -2,7 +2,7 @@
   "name": "marmalade",
   "productName": "Marmalade",
   "version": "1.1.0",
-  "description": "Marmalade — a Windows PDF reader with highlighting, notes and an eye-protection reading mode",
+  "description": "Marmalade — a desktop PDF reader with highlighting, notes and eye-protection reading modes",
   "main": "./out/main/index.js",
   "author": {
     "name": "mohammad ashourloo",
