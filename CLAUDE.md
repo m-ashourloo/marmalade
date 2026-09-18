@@ -19,7 +19,9 @@ quit
 EOF
 ```
 
-Generate test PDFs with `python scripts/make-fixtures.py <dir>`.
+Generate test PDFs with `python scripts/make-fixtures.py <dir>`, or
+`node scripts/make-fixtures.mjs <dir>` where reportlab cannot be installed —
+the Node version emits the same sample.pdf the harnesses assert against.
 
 Before claiming a UI change works, drive it and **look at the screenshot**. The
 unit tests cover geometry and search normalisation only — they cannot tell you
