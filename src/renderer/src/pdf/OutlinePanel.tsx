@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
+import { Icon } from '../ui/Icon'
 
 export interface OutlineNode {
   title: string
@@ -125,12 +126,13 @@ function OutlineRow({
       >
         <span
           className="twisty"
+          data-open={hasChildren && open}
           onClick={(e) => {
             e.stopPropagation()
             if (hasChildren) setOpen((v) => !v)
           }}
         >
-          {hasChildren ? (open ? '▾' : '▸') : ''}
+          {hasChildren && <Icon name="forward" size={12} />}
         </span>
         <span
           className="label"
