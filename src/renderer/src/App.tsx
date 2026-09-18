@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { DocumentRow, Highlight, HighlightColor, NormRect } from '@shared/types'
+import type { DocumentRow, Highlight, HighlightColor, HighlightPart } from '@shared/types'
 import { usePdfDocument } from './pdf/usePdfDocument'
 import { PdfViewer } from './pdf/PdfViewer'
 import type { ViewerHandle } from './pdf/PdfViewer'
@@ -126,15 +126,22 @@ export function App(): React.JSX.Element {
 
   // ---- highlight actions --------------------------------------------------
   const createHighlight = useCallback(
-    (p: number, rects: NormRect[], text: string, color: HighlightColor) => {
+    (parts: HighlightPart[], text: string, color: HighlightColor) => {
       if (!doc) return
       setPendingColor(color)
       void highlights
-        .create({ docId: doc.id, page: p, color, rects, quotedText: text })
-        .then((h) => h && setActiveHighlightId(h.id))
+        .create({ docId: doc.id, color, quotedText: text, parts })
+        // The first row is the part on the lowest page — where the selection began.
+        .then((created) => created[0] && setActiveHighlightId(created[0].id))
     },
     [doc, highlights]
   )
+
+  /** The selected highlight's other page-parts, so both halves paint as active. */
+  const activeHighlightIds = useMemo(() => {
+    const group = highlights.groups.find((g) => g.members.some((m) => m.id === activeHighlightId))
+    return new Set(group ? group.members.map((m) => m.id) : [])
+  }, [highlights.groups, activeHighlightId])
 
   const exportNotes = useCallback(async () => {
     if (!doc) return
@@ -403,7 +410,7 @@ export function App(): React.JSX.Element {
           <div className="sidebar">
             <div className="sidebar-tabs">
               <button aria-selected={tab === 'notes'} onClick={() => setTab('notes')}>
-                Notes {highlights.all.length > 0 && `(${highlights.all.length})`}
+                Notes {highlights.groups.length > 0 && `(${highlights.groups.length})`}
               </button>
               <button aria-selected={tab === 'outline'} onClick={() => setTab('outline')}>
                 Outline
@@ -419,14 +426,17 @@ export function App(): React.JSX.Element {
               <div className="sidebar-body">
                 {tab === 'notes' && (
                   <AnnotationSidebar
-                    highlights={highlights.all}
+                    groups={highlights.groups}
                     activeId={activeHighlightId}
                     onSelect={gotoHighlight}
                     onSetColor={(id, c) => void highlights.setColor(id, c)}
                     onSetNote={(id, b) => void highlights.setNote(id, b)}
                     onDelete={(id) => {
-                      void highlights.remove(id)
-                      if (activeHighlightId === id) setActiveHighlightId(null)
+                      void highlights.remove(id).then((removed) => {
+                        if (activeHighlightId !== null && removed.includes(activeHighlightId)) {
+                          setActiveHighlightId(null)
+                        }
+                      })
                     }}
                   />
                 )}
@@ -452,7 +462,7 @@ export function App(): React.JSX.Element {
             highlightsByPage={highlights.byPage}
             searchHitsByPage={search.hitsByPage}
             currentHitId={search.current?.id ?? null}
-            activeHighlightId={activeHighlightId}
+            activeHighlightIds={activeHighlightIds}
             pendingColor={pendingColor}
             onCreateHighlight={createHighlight}
             onHighlightClick={onHighlightClick}

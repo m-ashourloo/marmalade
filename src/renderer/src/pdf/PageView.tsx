@@ -21,7 +21,7 @@ export interface PageViewProps {
   highlights: Highlight[]
   searchHits: SearchHit[]
   currentHitId: string | null
-  activeHighlightId: number | null
+  activeHighlightIds: ReadonlySet<number>
   mode: ReadingMode
   onHighlightClick: (id: number) => void
   /** Publishes the live viewport so selection capture can convert coordinates. */
@@ -38,7 +38,7 @@ function PageViewImpl({
   highlights,
   searchHits,
   currentHitId,
-  activeHighlightId,
+  activeHighlightIds,
   mode,
   onHighlightClick,
   onViewportReady
@@ -186,7 +186,7 @@ function PageViewImpl({
                     style={{
                       ...style,
                       background: HIGHLIGHT_FILL[mode][h.color as HighlightColor],
-                      outline: h.id === activeHighlightId ? '2px solid #5b9dff' : undefined
+                      outline: activeHighlightIds.has(h.id) ? '2px solid #5b9dff' : undefined
                     }}
                   />
                 ) : null

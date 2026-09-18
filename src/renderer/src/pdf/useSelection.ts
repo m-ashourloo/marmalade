@@ -18,6 +18,35 @@ export interface SelectionSource {
 }
 
 /**
+ * Line rectangles for the glyphs a range actually covers.
+ *
+ * range.getClientRects() cannot be used directly: once a selection crosses a
+ * page boundary the range contains whole block boxes, and the browser reports a
+ * rect for each — including the page container itself. Those painted entire
+ * blank pages. Clipping the range to one text-layer span at a time keeps the
+ * output at the line granularity a PDF highlight wants.
+ */
+function lineRects(range: Range, root: HTMLElement): DOMRect[] {
+  const out: DOMRect[] = []
+  for (const span of Array.from(root.querySelectorAll<HTMLElement>('.textLayer span'))) {
+    if (!range.intersectsNode(span)) continue
+
+    const part = document.createRange()
+    part.selectNodeContents(span)
+    // Only the span holding an endpoint needs clipping; the rest are covered whole.
+    if (range.compareBoundaryPoints(Range.START_TO_START, part) === 1) {
+      part.setStart(range.startContainer, range.startOffset)
+    }
+    if (range.compareBoundaryPoints(Range.END_TO_END, part) === -1) {
+      part.setEnd(range.endContainer, range.endOffset)
+    }
+    if (part.collapsed) continue
+    out.push(...Array.from(part.getClientRects()))
+  }
+  return out
+}
+
+/**
  * Converts a DOM text selection over the pdf.js text layers into persistable,
  * page-relative geometry.
  *
@@ -59,7 +88,7 @@ export function useSelection(
       const range = sel.getRangeAt(r)
       if (!root.contains(range.commonAncestorContainer)) continue
 
-      for (const clientRect of Array.from(range.getClientRects())) {
+      for (const clientRect of lineRects(range, root)) {
         if (clientRect.width < 0.5 || clientRect.height < 0.5) continue
 
         const cx = clientRect.left + clientRect.width / 2

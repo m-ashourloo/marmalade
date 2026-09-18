@@ -80,6 +80,17 @@ CREATE TABLE thumbnails (
   updated_at INTEGER NOT NULL
 ) WITHOUT ROWID;
 `
+  },
+  {
+    version: 3,
+    // A selection crossing a page boundary must stay one highlight per page --
+    // rects are normalised against a single page's crop box -- so the rows are
+    // tied together by a shared group id instead. NULL means "a group of one",
+    // which is every pre-existing row and every single-page highlight.
+    sql: `
+ALTER TABLE highlights ADD COLUMN group_id TEXT;
+CREATE INDEX idx_highlights_group ON highlights(doc_id, group_id);
+`
   }
 ]
 

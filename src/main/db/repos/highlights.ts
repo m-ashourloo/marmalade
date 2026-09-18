@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { getDb } from '../connection'
 import { dedupeKey } from '../../transfer/format'
 import type {
@@ -7,6 +8,7 @@ import type {
   HighlightPatch,
   ImportResult,
   NewHighlight,
+  NewHighlightGroup,
   NormRect
 } from '../../../shared/types'
 
@@ -14,6 +16,7 @@ interface RawHighlight {
   id: number
   doc_id: number
   page: number
+  group_id: string | null
   color: string
   rects: string
   quoted_text: string
@@ -29,6 +32,7 @@ function toHighlight(r: RawHighlight): Highlight {
     id: r.id,
     docId: r.doc_id,
     page: r.page,
+    groupId: r.group_id,
     color: r.color as HighlightColor,
     rects: JSON.parse(r.rects) as NormRect[],
     quotedText: r.quoted_text,
@@ -60,17 +64,19 @@ export function getById(id: number): Highlight | null {
   return r ? toHighlight(r) : null
 }
 
+const INSERT_SQL = `
+  INSERT INTO highlights
+    (doc_id, page, group_id, color, rects, quoted_text, text_start, text_end, created_at, updated_at)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+
 export function create(input: NewHighlight): Highlight {
   const now = Date.now()
   const info = getDb()
-    .prepare(
-      `INSERT INTO highlights
-         (doc_id, page, color, rects, quoted_text, text_start, text_end, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    )
+    .prepare(INSERT_SQL)
     .run(
       input.docId,
       input.page,
+      null,
       input.color,
       JSON.stringify(input.rects),
       input.quotedText,
@@ -82,52 +88,132 @@ export function create(input: NewHighlight): Highlight {
   return getById(Number(info.lastInsertRowid))!
 }
 
-export function update(id: number, patch: HighlightPatch): Highlight | null {
+/**
+ * Writes one selection. Geometry stays split per page — rects are normalised
+ * against a single page's crop box — but every row of a multi-page selection
+ * shares a group id so the UI can treat them as one highlight. A single-page
+ * selection keeps a NULL group: it is already its own group.
+ */
+export function createGroup(input: NewHighlightGroup): Highlight[] {
   const db = getDb()
-  const sets: string[] = []
-  const args: unknown[] = []
-  if (patch.color !== undefined) {
-    sets.push('color = ?')
-    args.push(patch.color)
-  }
-  if (patch.rects !== undefined) {
-    sets.push('rects = ?')
-    args.push(JSON.stringify(patch.rects))
-  }
-  if (sets.length === 0) return getById(id)
-  sets.push('updated_at = ?')
-  args.push(Date.now(), id)
-  db.prepare(`UPDATE highlights SET ${sets.join(', ')} WHERE id = ?`).run(...args)
-  return getById(id)
+  const now = Date.now()
+  const groupId = input.parts.length > 1 ? randomUUID() : null
+  const insert = db.prepare(INSERT_SQL)
+
+  const ids = db.transaction(() =>
+    [...input.parts]
+      .sort((a, b) => a.page - b.page)
+      .map((part) =>
+        Number(
+          insert.run(
+            input.docId,
+            part.page,
+            groupId,
+            input.color,
+            JSON.stringify(part.rects),
+            input.quotedText,
+            null,
+            null,
+            now,
+            now
+          ).lastInsertRowid
+        )
+      )
+  )()
+
+  return ids.map((id) => getById(id)!)
 }
 
-export function remove(id: number): void {
-  getDb().prepare('DELETE FROM highlights WHERE id = ?').run(id)
-}
-
-/** Writes, clears or replaces the single note attached to a highlight. */
-export function upsertNote(highlightId: number, body: string): Highlight | null {
+/**
+ * Every row belonging to the same selection as `id`, page-ascending. A NULL
+ * group is a group of one, so this always returns at least the row itself.
+ */
+function memberIds(id: number): number[] {
   const db = getDb()
-  const hl = db.prepare('SELECT doc_id, page FROM highlights WHERE id = ?').get(highlightId) as
-    | { doc_id: number; page: number }
+  const row = db.prepare('SELECT doc_id, group_id FROM highlights WHERE id = ?').get(id) as
+    | { doc_id: number; group_id: string | null }
     | undefined
-  if (!hl) return null
+  if (!row) return []
+  if (row.group_id === null) return [id]
+  return (
+    db
+      .prepare(
+        'SELECT id FROM highlights WHERE doc_id = ? AND group_id = ? ORDER BY page ASC, id ASC'
+      )
+      .all(row.doc_id, row.group_id) as { id: number }[]
+  ).map((r) => r.id)
+}
+
+/**
+ * Recolours the whole group — the halves of one selection must never drift
+ * apart. Rects stay row-local: each page's geometry is its own.
+ */
+export function update(id: number, patch: HighlightPatch): Highlight[] {
+  const db = getDb()
+  const ids = memberIds(id)
+  if (ids.length === 0) return []
 
   const now = Date.now()
   db.transaction(() => {
-    if (body.trim() === '') {
-      db.prepare('DELETE FROM notes WHERE highlight_id = ?').run(highlightId)
-    } else {
-      db.prepare(
-        `INSERT INTO notes (doc_id, highlight_id, page, body, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?)
-         ON CONFLICT(highlight_id) WHERE highlight_id IS NOT NULL
-           DO UPDATE SET body = excluded.body, updated_at = excluded.updated_at`
-      ).run(hl.doc_id, highlightId, hl.page, body, now, now)
+    if (patch.color !== undefined) {
+      const stmt = db.prepare('UPDATE highlights SET color = ?, updated_at = ? WHERE id = ?')
+      for (const memberId of ids) stmt.run(patch.color, now, memberId)
     }
-    db.prepare('UPDATE highlights SET updated_at = ? WHERE id = ?').run(now, highlightId)
+    if (patch.rects !== undefined) {
+      db.prepare('UPDATE highlights SET rects = ?, updated_at = ? WHERE id = ?').run(
+        JSON.stringify(patch.rects),
+        now,
+        id
+      )
+    }
   })()
-  return getById(highlightId)
+  return ids.map((memberId) => getById(memberId)).filter((h): h is Highlight => h !== null)
+}
+
+/** Deletes every page-part of the selection, returning the ids that went. */
+export function remove(id: number): number[] {
+  const db = getDb()
+  const ids = memberIds(id)
+  if (ids.length === 0) return []
+  const stmt = db.prepare('DELETE FROM highlights WHERE id = ?')
+  db.transaction(() => {
+    for (const memberId of ids) stmt.run(memberId)
+  })()
+  return ids
+}
+
+/**
+ * Writes, clears or replaces the note on a selection. The body is mirrored onto
+ * every page-part: the notes table is keyed one-to-one by highlight id, so this
+ * is what keeps a cross-page highlight showing the same note on either page —
+ * in its hover tooltip and in an export bundle alike.
+ */
+export function upsertNote(highlightId: number, body: string): Highlight[] {
+  const db = getDb()
+  const ids = memberIds(highlightId)
+  if (ids.length === 0) return []
+
+  const now = Date.now()
+  const del = db.prepare('DELETE FROM notes WHERE highlight_id = ?')
+  const put = db.prepare(
+    `INSERT INTO notes (doc_id, highlight_id, page, body, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT(highlight_id) WHERE highlight_id IS NOT NULL
+       DO UPDATE SET body = excluded.body, updated_at = excluded.updated_at`
+  )
+  const touch = db.prepare('UPDATE highlights SET updated_at = ? WHERE id = ?')
+  const info = db.prepare('SELECT doc_id, page FROM highlights WHERE id = ?')
+
+  db.transaction(() => {
+    for (const id of ids) {
+      const hl = info.get(id) as { doc_id: number; page: number } | undefined
+      if (!hl) continue
+      if (body.trim() === '') del.run(id)
+      else put.run(hl.doc_id, id, hl.page, body, now, now)
+      touch.run(now, id)
+    }
+  })()
+  return ids.map((id) => getById(id)).filter((h): h is Highlight => h !== null)
 }
 
 /**
@@ -157,11 +243,7 @@ export function importMany(docId: number, items: BundleHighlight[]): ImportResul
 
   const existing = new Set(listByDoc(docId).map(dedupeKey))
 
-  const insertHl = db.prepare(
-    `INSERT INTO highlights
-       (doc_id, page, color, rects, quoted_text, text_start, text_end, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  )
+  const insertHl = db.prepare(INSERT_SQL)
   const insertNote = db.prepare(
     `INSERT INTO notes (doc_id, highlight_id, page, body, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?)`
@@ -184,6 +266,7 @@ export function importMany(docId: number, items: BundleHighlight[]): ImportResul
       const info = insertHl.run(
         docId,
         h.page,
+        h.groupId ?? null,
         h.color,
         JSON.stringify(h.rects),
         h.quotedText,

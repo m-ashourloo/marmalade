@@ -8,7 +8,13 @@ import {
   useState
 } from 'react'
 import type { PDFPageProxy, PageViewport } from 'pdfjs-dist'
-import type { Highlight, HighlightColor, NormRect, ReadingMode } from '@shared/types'
+import type {
+  Highlight,
+  HighlightColor,
+  HighlightPart,
+  NormRect,
+  ReadingMode
+} from '@shared/types'
 import type { LoadedDoc } from './usePdfDocument'
 import { PageView } from './PageView'
 import { useSelection } from './useSelection'
@@ -35,9 +41,10 @@ export interface PdfViewerProps {
   highlightsByPage: Map<number, Highlight[]>
   searchHitsByPage: Map<number, SearchHit[]>
   currentHitId: string | null
-  activeHighlightId: number | null
+  /** Every page-part of the selected highlight, so a cross-page one lights up whole. */
+  activeHighlightIds: ReadonlySet<number>
   pendingColor: HighlightColor
-  onCreateHighlight: (page: number, rects: NormRect[], text: string, color: HighlightColor) => void
+  onCreateHighlight: (parts: HighlightPart[], text: string, color: HighlightColor) => void
   onHighlightClick: (id: number) => void
   onPositionChange: (page: number, scrollFraction: number) => void
   handleRef: React.RefObject<ViewerHandle | null>
@@ -51,7 +58,7 @@ export function PdfViewer({
   highlightsByPage,
   searchHitsByPage,
   currentHitId,
-  activeHighlightId,
+  activeHighlightIds,
   pendingColor,
   onCreateHighlight,
   onHighlightClick,
@@ -213,10 +220,9 @@ export function PdfViewer({
 
   const commit = useCallback(
     (sel: PendingSelection, color: HighlightColor) => {
-      // A selection crossing a page boundary becomes one highlight per page.
-      for (const part of sel.pages) {
-        onCreateHighlight(part.page, part.rects, sel.text, color)
-      }
+      // The parts go over as one call: a selection crossing a page boundary is
+      // still one highlight, written as one row per page under a shared group id.
+      onCreateHighlight(sel.pages, sel.text, color)
       clear()
     },
     [onCreateHighlight, clear]
@@ -251,7 +257,7 @@ export function PdfViewer({
                 highlights={highlightsByPage.get(pageNumber) ?? []}
                 searchHits={searchHitsByPage.get(pageNumber) ?? []}
                 currentHitId={currentHitId}
-                activeHighlightId={activeHighlightId}
+                activeHighlightIds={activeHighlightIds}
                 mode={mode}
                 onHighlightClick={onHighlightClick}
                 onViewportReady={onViewportReady}

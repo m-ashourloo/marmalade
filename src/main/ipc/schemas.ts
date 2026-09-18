@@ -24,6 +24,23 @@ export const zNewHighlight = z.object({
   textEnd: z.number().int().nonnegative().nullable().optional()
 })
 
+/** A selection's per-page parts. 64 pages is far beyond any real drag but keeps
+ *  a malformed payload from fanning out into an unbounded transaction. */
+export const zNewHighlightGroup = z.object({
+  docId: zId,
+  color: zColor,
+  quotedText: z.string().max(100_000),
+  parts: z
+    .array(
+      z.object({
+        page: z.number().int().positive(),
+        rects: z.array(zNormRect).min(1).max(2000)
+      })
+    )
+    .min(1)
+    .max(64)
+})
+
 export const zHighlightPatch = z.object({
   color: zColor.optional(),
   rects: z.array(zNormRect).min(1).max(2000).optional()

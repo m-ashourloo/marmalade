@@ -24,6 +24,7 @@ const highlight: Highlight = {
   id: 7,
   docId: 1,
   page: 12,
+  groupId: null,
   color: 'yellow',
   rects: [{ x0: 0.1, y0: 0.4, x1: 0.8, y1: 0.42 }],
   quotedText: 'the quoted span',
@@ -64,6 +65,7 @@ describe('parseBundle', () => {
     const h = roundTrip().highlights[0]
     expect(h).toEqual({
       page: 12,
+      groupId: null,
       color: 'yellow',
       rects: [{ x0: 0.1, y0: 0.4, x1: 0.8, y1: 0.42 }],
       quotedText: 'the quoted span',
