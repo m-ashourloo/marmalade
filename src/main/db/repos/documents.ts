@@ -35,16 +35,18 @@ function toDoc(r: RawDoc): DocumentRow {
   }
 }
 
+/** The library screen also shows how much of each document has been marked up, so
+ *  the count is joined here rather than fetched per card. */
 export function listRecent(limit = 100): DocumentRow[] {
-  return (
-    getDb()
-      .prepare(
-        `SELECT * FROM documents
-         ORDER BY last_opened_at DESC NULLS LAST, created_at DESC
+  const rows = getDb()
+    .prepare(
+      `SELECT d.*, (SELECT COUNT(*) FROM highlights h WHERE h.doc_id = d.id) AS highlight_count
+         FROM documents d
+         ORDER BY d.last_opened_at DESC NULLS LAST, d.created_at DESC
          LIMIT ?`
-      )
-      .all(limit) as RawDoc[]
-  ).map(toDoc)
+    )
+    .all(limit) as (RawDoc & { highlight_count: number })[]
+  return rows.map((r) => ({ ...toDoc(r), highlightCount: r.highlight_count }))
 }
 
 export function getById(id: number): DocumentRow | null {

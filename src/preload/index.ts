@@ -10,7 +10,8 @@ import type {
   NewHighlight,
   OpenedDocument,
   PageTextRow,
-  ReadingPrefs
+  ReadingPrefs,
+  ThumbnailRow
 } from '../shared/types'
 
 // A narrow, verb-shaped surface. Deliberately NOT a generic invoke(channel, ...)
@@ -35,7 +36,13 @@ const api = {
     getPageText: (docId: number): Promise<PageTextRow[]> =>
       ipcRenderer.invoke('doc:getPageText', docId),
     putPageText: (docId: number, pages: PageTextRow[]): Promise<void> =>
-      ipcRenderer.invoke('doc:putPageText', docId, pages)
+      ipcRenderer.invoke('doc:putPageText', docId, pages),
+    getThumbnail: (docId: number): Promise<ThumbnailRow | null> =>
+      ipcRenderer.invoke('doc:getThumbnail', docId),
+    putThumbnail: (
+      docId: number,
+      thumb: { page: number; width: number; height: number; image: Uint8Array }
+    ): Promise<void> => ipcRenderer.invoke('doc:putThumbnail', docId, thumb)
   },
   annotations: {
     listByDoc: (docId: number): Promise<Highlight[]> => ipcRenderer.invoke('ann:listByDoc', docId),

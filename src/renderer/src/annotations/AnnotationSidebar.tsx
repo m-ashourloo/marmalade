@@ -22,9 +22,7 @@ export function AnnotationSidebar({
   if (highlights.length === 0) {
     return (
       <div className="sidebar-empty">
-        No highlights yet.
-        <br />
-        Select text in the document to highlight it and attach a note.
+        Select text in the page to highlight it. Every highlight can carry a note.
       </div>
     )
   }
@@ -117,7 +115,7 @@ function AnnotationItem({
         ))}
       </div>
 
-      <div className="ann-actions" onClick={(e) => e.stopPropagation()}>
+      <div className={`ann-actions${editing ? ' editing' : ''}`} onClick={(e) => e.stopPropagation()}>
         {editing ? (
           <>
             <button
@@ -143,7 +141,7 @@ function AnnotationItem({
             <button onClick={() => setEditing(true)}>
               {highlight.note ? 'Edit note' : 'Add note'}
             </button>
-            <button style={{ color: 'var(--danger)' }} onClick={onDelete}>
+            <button className="destructive" onClick={onDelete}>
               Delete
             </button>
           </>

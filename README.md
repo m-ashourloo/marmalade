@@ -1,17 +1,21 @@
 <div align="center">
 
-# 🍊 Marmalade
+<img src="build/icon.png" width="128" alt="">
+
+# Marmalade
 
 **A desktop PDF reader for people who read closely.**
 
 Highlight, annotate and search — without ever touching your PDF files.
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-f5a623.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-e08a1e.svg)](LICENSE)
 [![Electron](https://img.shields.io/badge/Electron-44-47848f.svg)](https://www.electronjs.org/)
 [![React](https://img.shields.io/badge/React-19-61dafb.svg)](https://react.dev/)
 [![PDF.js](https://img.shields.io/badge/PDF.js-6-b6272f.svg)](https://mozilla.github.io/pdf.js/)
 
-![Marmalade](docs/screenshot.png)
+![The library, with the page you stopped on](docs/library.png)
+
+![Reading, with a highlight and its note](docs/reader.png)
 
 </div>
 

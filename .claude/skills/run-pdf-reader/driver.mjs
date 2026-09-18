@@ -36,6 +36,10 @@ import electronPath from 'electron'
 const args = process.argv.slice(2)
 const OUT = resolve(valueOf('--out') ?? 'driver-out')
 const KEEP_DATA = args.includes('--keep-data')
+// Accumulate a library across runs WITHOUT touching the real profile. Without
+// this the throwaway profile is wiped on every launch, and reaching for
+// --keep-data to keep documents around silently writes to the user's library.
+const REUSE_DATA = args.includes('--reuse-data')
 const PORT = Number(valueOf('--port') ?? 9333)
 
 function valueOf(flag) {
@@ -48,9 +52,11 @@ const say = (...a) => console.log(...a)
 
 mkdirSync(OUT, { recursive: true })
 // A throwaway profile, so driving the app never touches the real library in
-// %APPDATA%\PDF Reader. Pass --keep-data to use the real one instead.
+// %APPDATA%\PDF Reader. --reuse-data keeps that throwaway profile between runs;
+// --keep-data is the different, louder thing: drive the REAL library.
 const userData = resolve(OUT, 'userdata')
-if (!KEEP_DATA) rmSync(userData, { recursive: true, force: true })
+if (!KEEP_DATA && !REUSE_DATA) rmSync(userData, { recursive: true, force: true })
+if (KEEP_DATA) say('!! --keep-data: driving the REAL library, not a throwaway profile')
 
 let child = null
 let ws = null
@@ -205,7 +211,10 @@ async function realDrag(selector) {
     const el = els.find(e => (e.textContent ?? '').trim().length > 10) ?? els[0];
     if (!el) return null;
     const r = el.getBoundingClientRect();
-    return { y: r.top + r.height / 2, x0: r.left + 3, x1: r.right - 3,
+    // Inside the glyph box, but only just: +3 lands past the midpoint of the
+    // first character, so the selection silently dropped its opening letter.
+    // Outside the box does not work at all — the press starts no selection.
+    return { y: r.top + r.height / 2, x0: r.left + 1, x1: r.right - 1,
              text: (el.textContent ?? '').slice(0, 50) };
   `)
   if (!b) throw new Error(`no element matches ${selector}`)
@@ -303,8 +312,7 @@ async function state() {
       page: document.querySelector('.page-input')?.value ?? null,
       totalPages: document.querySelectorAll('.page').length || null,
       zoom: [...document.querySelectorAll('.toolbar span')].map(s => s.textContent).find(t => /%/.test(t)) ?? null,
-      mode: [...document.querySelectorAll('.toolbar button')]
-              .map(b => b.textContent.trim()).find(t => t.startsWith('◐')) ?? null,
+      mode: document.querySelector('.toolbar [data-act="reading-mode"]')?.textContent.trim() ?? null,
       libraryCards: document.querySelectorAll('.lib-card').length,
       highlightsDrawn: document.querySelectorAll('.highlight-layer .rect').length,
       sidebarItems: document.querySelectorAll('.ann-item').length,
@@ -315,8 +323,14 @@ async function state() {
 }
 
 async function openInRunning(pdf) {
-  // The single-instance lock routes a second launch's file into the live window.
-  const p = spawn(electronPath, ['.', resolve(pdf)], { cwd: process.cwd(), stdio: 'ignore' })
+  // The single-instance lock routes a second launch's file into the live window
+  // — but the lock is per user-data dir, so this MUST pass the same profile as
+  // launch(). Without it the second instance missed the lock entirely and opened
+  // a fresh window on the real library.
+  const argv = ['.']
+  if (!KEEP_DATA) argv.push(`--user-data-dir=${userData}`)
+  argv.push(resolve(pdf))
+  const p = spawn(electronPath, argv, { cwd: process.cwd(), stdio: 'ignore' })
   await sleep(4000)
   p.kill()
   await waitForPages()

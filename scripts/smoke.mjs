@@ -185,7 +185,7 @@ async function main() {
         canvases: document.querySelectorAll('.page canvas').length,
         spans: document.querySelectorAll('.textLayer span').length,
         title: document.querySelector('.doc-title')?.textContent ?? null,
-        total: document.querySelector('.toolbar span:nth-of-type(2)')?.textContent ?? null
+        total: document.querySelector('.toolbar .page-total')?.textContent ?? null
       };
     `)
     log('viewer state', JSON.stringify(state))
@@ -276,7 +276,7 @@ async function main() {
       };
     `)
     await cdp.eval(`
-      [...document.querySelectorAll('.toolbar button')].find(b => b.textContent === '+').click();
+      document.querySelector('.toolbar [data-act="zoom-in"]').click();
       return true;
     `)
     const zoomed = await waitFor(
@@ -315,10 +315,9 @@ async function main() {
     log('anchored at page', startPage)
 
     const drift = []
-    for (const btn of ['+', '+', '−', '−', '+']) {
+    for (const btn of ['zoom-in', 'zoom-in', 'zoom-out', 'zoom-out', 'zoom-in']) {
       await cdp.eval(
-        `[...document.querySelectorAll('.toolbar button')]
-           .find(b => b.textContent === ${JSON.stringify(btn)}).click(); return true;`
+        `document.querySelector('.toolbar [data-act=${JSON.stringify(btn)}]').click(); return true;`
       )
       const at = await waitFor(
         cdp,
@@ -448,7 +447,7 @@ async function main() {
     const probes = {}
     for (const [label, file] of [['Dark', '08-dark.png'], ['Sepia', '09-sepia.png']]) {
       await cdp.eval(`
-        const t = [...document.querySelectorAll('.toolbar button')].find(b => b.textContent.includes('◐'));
+        const t = document.querySelector('.toolbar [data-act="reading-mode"]');
         if (!document.querySelector('.popover')) t.click();
         await new Promise(r => setTimeout(r, 250));
         [...document.querySelectorAll('.popover .mode-row button')].find(b => b.textContent === '${label}').click();
@@ -588,8 +587,7 @@ async function main() {
 
     // ---- the import modal, and the drop guard around it ---------------------
     const modal = await cdp.eval(`
-      [...document.querySelectorAll('.toolbar button')]
-        .find(b => b.textContent.includes('Import')).click();
+      document.querySelector('.toolbar [data-act="import"]').click();
       await new Promise(r => setTimeout(r, 300));
       const open = !!document.querySelector('.modal .dropzone');
 
