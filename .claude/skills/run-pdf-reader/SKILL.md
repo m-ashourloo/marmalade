@@ -62,7 +62,7 @@ launched
   "page": "1",
   "totalPages": 60,
   "zoom": "125%",
-  "mode": "◐ Normal",
+  "mode": "Normal",
   "libraryCards": 0,
   "highlightsDrawn": 0,
   "sidebarItems": 0,
@@ -91,11 +91,19 @@ screenshot -> /tmp/pdfout/01-opened.png
 | `quit` | Stop the app and exit |
 
 Flags: `--out <dir>` (screenshots + throwaway profile), `--port N` (default 9333),
-`--keep-data` (use the **real** `%APPDATA%\PDF Reader` library instead of a scratch
-profile), `DRIVER_VERBOSE=1` (stream the app's stdout/stderr).
+`--reuse-data` (keep the throwaway profile between runs), `--keep-data` (drive the
+**real** `%APPDATA%\PDF Reader` library instead of a scratch profile),
+`DRIVER_VERBOSE=1` (stream the app's stdout/stderr).
 
 By default the driver uses a throwaway `--user-data-dir`, so driving the app never
-touches real annotations.
+touches real annotations — and wipes it on every launch.
+
+**`--reuse-data` and `--keep-data` are not the same thing, and the names invite
+the mistake.** To build up a library across several launches — a shelf for a
+screenshot, say — use `--reuse-data`, which keeps the *scratch* profile. Reaching
+for `--keep-data` to "keep the documents around" instead writes your fixtures,
+highlights and reading positions into the user's real library; it prints a
+warning line when it does.
 
 ### Worked example: highlight, then attach a note
 
@@ -120,7 +128,7 @@ Ends with `"highlightsDrawn": 1, "sidebarItems": 1, "highlightsStored": 1`.
 ```bash
 node .claude/skills/run-pdf-reader/driver.mjs --out /tmp/pdfout <<'EOF'
 launch /path/to/sample.pdf
-clicktext ◐ Normal
+click [data-act="reading-mode"]
 clicktext Dark
 set input[type=range] 0.7
 eval return getComputedStyle(document.querySelector('.page canvas')).filter;
@@ -175,6 +183,13 @@ The repo has no checked-in sample PDF. Generate ones with known content
 
 ```bash
 python scripts/make-fixtures.py /tmp/fixtures
+```
+
+Needs reportlab. Where pip is unavailable, use the Node fallback — it writes the
+same `sample.pdf` (it does not produce `cjk.pdf`, so skip `verify:cjk` there):
+
+```bash
+node scripts/make-fixtures.mjs /tmp/fixtures
 ```
 
 ## Existing scenario harnesses
@@ -234,9 +249,9 @@ These cost real debugging time. None are guessable.
   so a direct assignment never re-renders. Use `set`, which calls the native
   setter before dispatching `input`/`change`.
 
-- **The reading-mode button opens a popover; it does not cycle.** `clicktext
-  ◐ Normal` opens the panel, then `clicktext Dark` picks the mode. The button's
-  label changes with the mode (`◐ Dark`), so don't hard-code it.
+- **The reading-mode button opens a popover; it does not cycle.** `click
+  [data-act="reading-mode"]` opens the panel, then `clicktext Dark` picks the
+  mode. Its label follows the mode, so address it by `data-act`, never by text.
 
 - **The dim/dark filter is on the canvas only**, never the page container —
   filtering the container would invert highlights and the selection colour.
@@ -257,7 +272,7 @@ These cost real debugging time. None are guessable.
 | --- | --- |
 | `app never exposed a debug port` | A stray instance, or you skipped `npm run build`. Run `npm run build`, then retry — the driver kills strays itself. |
 | Launch returns instantly, no window | Single-instance lock. `taskkill /F /IM "PDF Reader.exe"` and `taskkill /F /IM electron.exe`. |
-| `no button labelled "..."` | Labels carry glyphs — the mode button is `◐ Normal`, back is `← Library`. Dump them: `eval return [...document.querySelectorAll('button')].map(b=>b.textContent.trim());` |
+| `no button labelled "..."` | Toolbar buttons are icon-only and carry no text. Address them by `data-act` (`library`, `sidebar`, `page-prev`, `page-next`, `zoom-in`, `zoom-out`, `rotate`, `reading-mode`, `import`, `export`) rather than by label. Dump them: `eval return [...document.querySelectorAll('.toolbar button')].map(b=>b.dataset.act);` |
 | `drag` selects `""` | The matched span was empty or off-screen. Use `.page[data-page="1"] .textLayer span` and make sure the page is scrolled into view. |
 | Blank pages, no glyphs (CJK) | `cmaps`/`standard_fonts`/`wasm` were not copied into the renderer output. Re-run `npm run build`. |
 | `mksquashfs ENOENT` on `build:linux` | Linux packaging cannot run on Windows. Build on Linux or in Docker. |
