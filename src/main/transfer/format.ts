@@ -21,6 +21,8 @@ const zNormRect = z.object({
 
 const zBundleHighlight = z.object({
   page: z.number().int().positive(),
+  // Absent in bundles written before cross-page highlights were grouped.
+  groupId: z.string().max(200).nullable().default(null),
   color: z.enum(['yellow', 'green', 'blue', 'pink', 'orange']),
   rects: z.array(zNormRect).min(1).max(2000),
   quotedText: z.string().max(100_000),
@@ -60,6 +62,7 @@ export function buildBundle(doc: DocumentRow, highlights: Highlight[]): Annotati
     highlights: highlights.map(
       (h): BundleHighlight => ({
         page: h.page,
+        groupId: h.groupId,
         color: h.color,
         rects: h.rects,
         quotedText: h.quotedText,

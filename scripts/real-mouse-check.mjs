@@ -221,6 +221,168 @@ async function main() {
     if (noteResult.shownInSidebar !== NOTE) throw new Error('note saved but not shown in the sidebar')
     if (!noteResult.editorClosed) throw new Error('editor stayed open after Save')
     log('PASS: real click → Add note → type → Save works')
+
+    // ---- a selection that crosses a page boundary ---------------------------
+    // The rects must stay split per page (each is normalised against one crop
+    // box), but the two rows are one highlight: one sidebar entry, one note.
+    // The fixture prints its text in the top third of each page, so at the
+    // default zoom the two sides of a seam can never share a screen. Zoom out
+    // first — with real clicks, like everything else here.
+    const zoomOut = await ev(`
+      const r = document.querySelector('[data-act="zoom-out"]').getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    `)
+    for (let i = 0; i < 3; i++) {
+      await mouse('mousePressed', zoomOut.x, zoomOut.y)
+      await mouse('mouseReleased', zoomOut.x, zoomOut.y)
+      await sleep(600)
+    }
+    await sleep(1200)
+
+    const boundary = await ev(`
+      const sc = document.querySelector('.viewer');
+      const p2 = document.querySelector('.page[data-page="2"]');
+      if (!sc || !p2) return null;
+      // Park the page 1 / page 2 seam just below the middle of the viewport, so
+      // both the last line of one and the first line of the other are on screen.
+      sc.scrollTop += p2.getBoundingClientRect().top - sc.getBoundingClientRect().top
+                      - sc.clientHeight * 0.55;
+      return true;
+    `)
+    if (!boundary) throw new Error('could not scroll to the page 1 / page 2 boundary')
+    await sleep(1500)
+
+    const seam = await ev(`
+      const view = document.querySelector('.viewer').getBoundingClientRect();
+      const lines = (page) => [...document.querySelectorAll('.page[data-page="' + page + '"] .textLayer span')]
+        .filter(s => s.textContent.trim().length > 10)
+        .map(s => ({ el: s, r: s.getBoundingClientRect() }))
+        .filter(({ r }) => r.top > view.top && r.bottom < view.bottom);
+      const top = lines(1), bottom = lines(2);
+      if (!top.length || !bottom.length) return null;
+      const from = top[top.length - 1], to = bottom[0];
+      return {
+        x0: from.r.left + 1, y0: from.r.top + from.r.height / 2,
+        x1: to.r.right - 1,  y1: to.r.top + to.r.height / 2
+      };
+    `)
+    log('seam', JSON.stringify(seam))
+    if (!seam) throw new Error('no on-screen text on both sides of the page boundary')
+
+    await mouse('mousePressed', seam.x0, seam.y0)
+    for (let i = 1; i <= 16; i++) {
+      await mouse(
+        'mouseMoved',
+        seam.x0 + ((seam.x1 - seam.x0) * i) / 16,
+        seam.y0 + ((seam.y1 - seam.y0) * i) / 16
+      )
+      await sleep(25)
+    }
+    await mouse('mouseReleased', seam.x1, seam.y1)
+    await sleep(700)
+
+    const crossSel = await ev(`
+      return {
+        selected: (window.getSelection()?.toString() ?? '').slice(0, 60),
+        popupVisible: !!document.querySelector('.selection-popup')
+      };
+    `)
+    log('cross-page selection', JSON.stringify(crossSel))
+    if (!crossSel.popupVisible) throw new Error('cross-page drag produced no colour popup')
+
+    const swatch2 = await ev(`
+      const s = document.querySelectorAll('.selection-popup .swatch')[1];
+      const r = s.getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    `)
+    await mouse('mousePressed', swatch2.x, swatch2.y)
+    await mouse('mouseReleased', swatch2.x, swatch2.y)
+    await sleep(1200)
+
+    const cross = await ev(`
+      const stored = await window.api.annotations.listByDoc(1);
+      const grouped = stored.filter(h => h.groupId !== null);
+      return {
+        stored: stored.length,
+        groupRows: grouped.length,
+        groupIds: [...new Set(grouped.map(h => h.groupId))].length,
+        pages: grouped.map(h => h.page),
+        sidebar: document.querySelectorAll('.ann-item').length,
+        meta: [...document.querySelectorAll('.ann-item .meta span')].map(s => s.textContent.trim())
+      };
+    `)
+    log('cross-page highlight', JSON.stringify(cross))
+
+    const { data: d4 } = await rpc(ws, 'Page.captureScreenshot', { format: 'png' })
+    await writeFile(`${OUT}/cross-page-highlight.png`, Buffer.from(d4, 'base64'))
+
+    if (cross.groupRows !== 2) throw new Error(`expected 2 grouped rows, got ${cross.groupRows}`)
+    if (cross.groupIds !== 1) throw new Error('the two page-parts do not share one group id')
+    if (cross.pages.join(',') !== '1,2') throw new Error(`grouped rows are on pages ${cross.pages}`)
+    // One entry for the cross-page highlight, one for the single-page one above.
+    if (cross.sidebar !== 2) throw new Error(`expected 2 sidebar entries, got ${cross.sidebar}`)
+    if (!cross.meta.includes('Pages 1–2')) throw new Error(`no "Pages 1–2" entry: ${cross.meta}`)
+    log('PASS: a cross-page drag is one sidebar entry over two page-parts')
+
+    // A note written on the group reaches both rows; deleting it takes both.
+    const secondItem = async (label) => {
+      const at = await ev(`
+        const item = document.querySelectorAll('.ann-item')[1];
+        const b = [...item.querySelectorAll('button')]
+          .find(b => b.textContent.trim() === ${JSON.stringify(label)});
+        if (!b) return null;
+        const r = b.getBoundingClientRect();
+        return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+      `)
+      if (!at) throw new Error(`no "${label}" button on the cross-page entry`)
+      await mouse('mousePressed', at.x, at.y)
+      await mouse('mouseReleased', at.x, at.y)
+      await sleep(500)
+    }
+
+    await secondItem('Add note')
+    const ta2 = await ev(`
+      const r = document.querySelector('.ann-item textarea').getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + 12 };
+    `)
+    await mouse('mousePressed', ta2.x, ta2.y)
+    await mouse('mouseReleased', ta2.x, ta2.y)
+    await sleep(200)
+    const CROSS_NOTE = 'One note for both halves.'
+    for (const ch of CROSS_NOTE) {
+      await rpc(ws, 'Input.dispatchKeyEvent', { type: 'char', text: ch })
+    }
+    await sleep(300)
+    await secondItem('Save')
+
+    const noteSpread = await ev(`
+      const stored = await window.api.annotations.listByDoc(1);
+      const grouped = stored.filter(h => h.groupId !== null);
+      return {
+        notes: grouped.map(h => h.note),
+        bodies: document.querySelectorAll('.ann-item .note-body').length
+      };
+    `)
+    log('group note', JSON.stringify(noteSpread))
+    if (noteSpread.notes.some((n) => n !== CROSS_NOTE)) {
+      throw new Error('the note did not reach both page-parts')
+    }
+    if (noteSpread.bodies !== 2) throw new Error('the group note is shown more than once')
+
+    await secondItem('Delete')
+    await sleep(800)
+    const afterDelete = await ev(`
+      const stored = await window.api.annotations.listByDoc(1);
+      return {
+        stored: stored.length,
+        grouped: stored.filter(h => h.groupId !== null).length,
+        sidebar: document.querySelectorAll('.ann-item').length
+      };
+    `)
+    log('after group delete', JSON.stringify(afterDelete))
+    if (afterDelete.grouped !== 0) throw new Error('deleting the entry left a page-part behind')
+    if (afterDelete.sidebar !== 1) throw new Error('the single-page highlight was deleted too')
+    log('PASS: one note and one delete for the whole cross-page highlight')
   } catch (err) {
     log('--- app output ---')
     console.log(

@@ -38,6 +38,9 @@ export interface Highlight {
   id: number
   docId: number
   page: number
+  /** Shared by every page-part of one cross-page selection; null when the
+   *  highlight stands alone. */
+  groupId: string | null
   color: HighlightColor
   rects: NormRect[]
   quotedText: string
@@ -47,6 +50,21 @@ export interface Highlight {
   updatedAt: number
   /** Body of the attached note, or null when the highlight has no note. */
   note: string | null
+}
+
+/** One page's share of a selection: the rects that fell on that page. */
+export interface HighlightPart {
+  page: number
+  rects: NormRect[]
+}
+
+/** A selection as the renderer captures it. One part per page it touched — the
+ *  main process turns the parts into rows sharing a group id. */
+export interface NewHighlightGroup {
+  docId: number
+  color: HighlightColor
+  quotedText: string
+  parts: HighlightPart[]
 }
 
 export interface NewHighlight {
@@ -117,6 +135,7 @@ export interface OpenedDocument {
  *  and highlight rowids are local to whichever library wrote the file. */
 export interface BundleHighlight {
   page: number
+  groupId: string | null
   color: HighlightColor
   rects: NormRect[]
   quotedText: string

@@ -8,6 +8,7 @@ import type {
   ImportPreview,
   ImportResult,
   NewHighlight,
+  NewHighlightGroup,
   OpenedDocument,
   PageTextRow,
   ReadingPrefs,
@@ -47,10 +48,15 @@ const api = {
   annotations: {
     listByDoc: (docId: number): Promise<Highlight[]> => ipcRenderer.invoke('ann:listByDoc', docId),
     createHl: (input: NewHighlight): Promise<Highlight> => ipcRenderer.invoke('ann:createHl', input),
-    updateHl: (id: number, patch: HighlightPatch): Promise<Highlight | null> =>
+    /** Writes one selection: a page-part per page it crossed, sharing a group id. */
+    createGroup: (input: NewHighlightGroup): Promise<Highlight[]> =>
+      ipcRenderer.invoke('ann:createGroup', input),
+    // These three address a selection through any of its rows and answer with
+    // every row affected, so the caller can update the whole group at once.
+    updateHl: (id: number, patch: HighlightPatch): Promise<Highlight[]> =>
       ipcRenderer.invoke('ann:updateHl', id, patch),
-    deleteHl: (id: number): Promise<void> => ipcRenderer.invoke('ann:deleteHl', id),
-    upsertNote: (highlightId: number, body: string): Promise<Highlight | null> =>
+    deleteHl: (id: number): Promise<number[]> => ipcRenderer.invoke('ann:deleteHl', id),
+    upsertNote: (highlightId: number, body: string): Promise<Highlight[]> =>
       ipcRenderer.invoke('ann:upsertNote', highlightId, body)
   },
   transfer: {

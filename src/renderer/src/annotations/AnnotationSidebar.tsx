@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import type { Highlight, HighlightColor } from '@shared/types'
+import type { HighlightGroup } from './useHighlights'
 import { COLOR_LABEL, SWATCH } from '../theme/colors'
 
 export interface AnnotationSidebarProps {
-  highlights: Highlight[]
+  /** One entry per selection — a cross-page drag is a single group, not one row per page. */
+  groups: HighlightGroup[]
   activeId: number | null
   onSelect: (h: Highlight) => void
   onSetColor: (id: number, color: HighlightColor) => void
@@ -12,14 +14,14 @@ export interface AnnotationSidebarProps {
 }
 
 export function AnnotationSidebar({
-  highlights,
+  groups,
   activeId,
   onSelect,
   onSetColor,
   onSetNote,
   onDelete
 }: AnnotationSidebarProps): React.JSX.Element {
-  if (highlights.length === 0) {
+  if (groups.length === 0) {
     return (
       <div className="sidebar-empty">
         Select text in the page to highlight it. Every highlight can carry a note.
@@ -29,15 +31,16 @@ export function AnnotationSidebar({
 
   return (
     <>
-      {highlights.map((h) => (
+      {groups.map((g) => (
         <AnnotationItem
-          key={h.id}
-          highlight={h}
-          active={h.id === activeId}
-          onSelect={() => onSelect(h)}
-          onSetColor={(c) => onSetColor(h.id, c)}
-          onSetNote={(b) => onSetNote(h.id, b)}
-          onDelete={() => onDelete(h.id)}
+          key={g.key}
+          highlight={g.primary}
+          lastPage={g.members[g.members.length - 1].page}
+          active={g.members.some((m) => m.id === activeId)}
+          onSelect={() => onSelect(g.primary)}
+          onSetColor={(c) => onSetColor(g.primary.id, c)}
+          onSetNote={(b) => onSetNote(g.primary.id, b)}
+          onDelete={() => onDelete(g.primary.id)}
         />
       ))}
     </>
@@ -46,6 +49,7 @@ export function AnnotationSidebar({
 
 function AnnotationItem({
   highlight,
+  lastPage,
   active,
   onSelect,
   onSetColor,
@@ -53,6 +57,7 @@ function AnnotationItem({
   onDelete
 }: {
   highlight: Highlight
+  lastPage: number
   active: boolean
   onSelect: () => void
   onSetColor: (c: HighlightColor) => void
@@ -70,6 +75,7 @@ function AnnotationItem({
   return (
     <div
       className={`ann-item${active ? ' active' : ''}`}
+      data-ann={highlight.id}
       onClick={onSelect}
       style={{ ['--q' as string]: SWATCH[highlight.color] }}
     >
@@ -98,7 +104,9 @@ function AnnotationItem({
       )}
 
       <div className="meta">
-        <span>Page {highlight.page}</span>
+        <span>
+          {lastPage > highlight.page ? `Pages ${highlight.page}–${lastPage}` : `Page ${highlight.page}`}
+        </span>
         <span className="spacer" style={{ flex: 1 }} />
         {(Object.keys(SWATCH) as HighlightColor[]).map((c) => (
           <button
