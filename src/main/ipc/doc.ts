@@ -6,9 +6,10 @@ import type { BrowserWindow } from 'electron'
 import { z } from 'zod'
 import * as documents from '../db/repos/documents'
 import * as pageText from '../db/repos/pageText'
+import * as thumbnails from '../db/repos/thumbnails'
 import { sha256File } from '../files/hash'
-import { zDocMeta, zId, zPageText, zPosition } from './schemas'
-import type { OpenedDocument, PageTextRow } from '../../shared/types'
+import { zDocMeta, zId, zPageText, zPosition, zThumbnail } from './schemas'
+import type { OpenedDocument, PageTextRow, ThumbnailRow } from '../../shared/types'
 
 const zPath = z
   .string()
@@ -65,5 +66,13 @@ export function registerDocHandlers(_getWindow: () => BrowserWindow | null): voi
 
   ipcMain.handle('doc:putPageText', (_e, rawId: unknown, rawPages: unknown) => {
     pageText.putMany(zId.parse(rawId), zPageText.parse(rawPages))
+  })
+
+  ipcMain.handle('doc:getThumbnail', (_e, rawId: unknown): ThumbnailRow | null => {
+    return thumbnails.get(zId.parse(rawId))
+  })
+
+  ipcMain.handle('doc:putThumbnail', (_e, rawId: unknown, rawThumb: unknown) => {
+    thumbnails.put(zId.parse(rawId), zThumbnail.parse(rawThumb))
   })
 }

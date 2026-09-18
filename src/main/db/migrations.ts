@@ -65,6 +65,21 @@ CREATE TABLE settings (
   value TEXT NOT NULL
 );
 `
+  },
+  {
+    version: 2,
+    // Its own table rather than a column on documents: every read in repos/documents
+    // is SELECT *, so a BLOB there would be pulled into memory on every library list.
+    sql: `
+CREATE TABLE thumbnails (
+  doc_id     INTEGER PRIMARY KEY REFERENCES documents(id) ON DELETE CASCADE,
+  page       INTEGER NOT NULL,
+  width      INTEGER NOT NULL,
+  height     INTEGER NOT NULL,
+  image      BLOB    NOT NULL,
+  updated_at INTEGER NOT NULL
+) WITHOUT ROWID;
+`
   }
 ]
 

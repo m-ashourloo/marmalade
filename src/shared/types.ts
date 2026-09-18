@@ -30,6 +30,8 @@ export interface DocumentRow {
   lastOpenedAt: number | null
   createdAt: number
   missing: boolean
+  /** Only populated by library:list — the reader does not need it. */
+  highlightCount?: number
 }
 
 export interface Highlight {
@@ -93,6 +95,14 @@ export interface PageTextRow {
   page: number
   text: string
   offsets: number[]
+}
+
+/** A cached render of the page a document was last left on, for the library. */
+export interface ThumbnailRow {
+  page: number
+  width: number
+  height: number
+  image: ArrayBuffer
 }
 
 export interface OpenedDocument {

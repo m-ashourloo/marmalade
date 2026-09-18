@@ -49,6 +49,17 @@ export const zPageText = z.array(
   })
 )
 
+/** A page render cached for the library screen. The byte cap is generous for a
+ *  ~300px WebP but small enough that a malformed payload cannot bloat the DB. */
+export const zThumbnail = z.object({
+  page: z.number().int().positive(),
+  width: z.number().int().positive().max(4000),
+  height: z.number().int().positive().max(4000),
+  image: z
+    .instanceof(Uint8Array)
+    .refine((b) => b.byteLength > 0 && b.byteLength <= 400_000, 'thumbnail too large')
+})
+
 export const zSettingsKey = z.string().min(1).max(100)
 
 /** An import file's raw text. The shape inside is validated by parseBundle. */

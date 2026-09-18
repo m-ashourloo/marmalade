@@ -13,6 +13,8 @@ import { LibraryView, useLibrary } from './library/LibraryView'
 import { useReadingPrefs } from './theme/useReadingPrefs'
 import { ReadingModePopover } from './theme/ReadingModePopover'
 import { ImportModal } from './transfer/ImportModal'
+import { Icon } from './ui/Icon'
+import { captureThumbnail } from './library/captureThumbnail'
 
 const ZOOM_STEPS = [0.5, 0.67, 0.8, 1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4]
 type Tab = 'notes' | 'outline' | 'search'
@@ -29,7 +31,9 @@ export function App(): React.JSX.Element {
   const [importOpen, setImportOpen] = useState(false)
   const [activeHighlightId, setActiveHighlightId] = useState<number | null>(null)
   const [pendingColor, setPendingColor] = useState<HighlightColor>('yellow')
-  const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<{ tone: 'error' | 'success'; message: string } | null>(
+    null
+  )
 
   const viewerRef = useRef<ViewerHandle | null>(null)
   const scrollFraction = useRef(0)
@@ -55,7 +59,7 @@ export function App(): React.JSX.Element {
         if (opened.lastZoom) setScale(opened.lastZoom)
         void library.refresh()
       } catch (err) {
-        setError((err as Error).message)
+        setNotice({ tone: 'error', message: (err as Error).message })
       }
     },
     [library]
@@ -89,7 +93,7 @@ export function App(): React.JSX.Element {
   }, [loaded, doc])
 
   useEffect(() => {
-    if (loadError) setError(loadError)
+    if (loadError) setNotice({ tone: 'error', message: loadError })
   }, [loadError])
 
   // ---- persisting position ------------------------------------------------
@@ -136,11 +140,27 @@ export function App(): React.JSX.Element {
     if (!doc) return
     try {
       const result = await window.api.transfer.saveExport(doc.id)
-      if (result.saved) setError(`Exported ${result.count} highlights to ${result.path}`)
+      if (result.saved) {
+        setNotice({
+          tone: 'success',
+          message: `Exported ${result.count} highlights to ${result.path}`
+        })
+      }
     } catch (err) {
-      setError((err as Error).message)
+      setNotice({ tone: 'error', message: (err as Error).message })
     }
   }, [doc])
+
+  /**
+   * Leaving the reader is the one moment we know both the document and the page
+   * the reader stopped on, so the library thumbnail is refreshed here — once per
+   * reading session rather than on every scroll.
+   */
+  const closeDocument = useCallback(async () => {
+    if (doc && loaded) await captureThumbnail(loaded.pdf, doc.id, page)
+    setDoc(null)
+    await library.refresh()
+  }, [doc, loaded, page, library])
 
   const gotoHighlight = useCallback((h: Highlight) => {
     setActiveHighlightId(h.id)
@@ -254,7 +274,7 @@ export function App(): React.JSX.Element {
             onImported={() => void library.refresh()}
           />
         )}
-        {error && <Toast message={error} onDismiss={() => setError(null)} />}
+        {notice && <Toast notice={notice} onDismiss={() => setNotice(null)} />}
       </div>
     )
   }
@@ -262,78 +282,116 @@ export function App(): React.JSX.Element {
   return (
     <div className="app">
       <div className="toolbar">
+        <button data-act="library" onClick={() => void closeDocument()} title="Back to library">
+          <Icon name="library" />
+          Library
+        </button>
         <button
-          onClick={() => {
-            setDoc(null)
-            void library.refresh()
-          }}
-          title="Back to library"
+          data-act="sidebar"
+          onClick={() => setSidebarOpen((v) => !v)}
+          aria-pressed={sidebarOpen}
+          aria-label="Toggle sidebar"
+          title="Toggle sidebar"
         >
-          ← Library
+          <Icon name="sidebar" />
         </button>
-        <button onClick={() => setSidebarOpen((v) => !v)} title="Toggle sidebar">
-          ☰
-        </button>
-        <span className="divider" />
+
         <span className="doc-title" title={doc.path}>
           {doc.title ?? doc.path}
         </span>
 
         <span className="spacer" />
 
-        <button onClick={() => viewerRef.current?.scrollToPage(Math.max(1, page - 1))} title="Previous page">
-          ‹
-        </button>
-        <input
-          className="page-input"
-          type="text"
-          value={pageDraft}
-          onChange={(e) => setPageDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key !== 'Enter') return
-            const n = Number(pageDraft)
-            if (Number.isFinite(n) && n >= 1 && loaded && n <= loaded.pdf.numPages) {
-              viewerRef.current?.scrollToPage(n)
-            } else {
-              setPageDraft(String(page))
-            }
-          }}
-        />
-        <span style={{ color: 'var(--text-dim)' }}>/ {loaded?.pdf.numPages ?? '…'}</span>
-        <button onClick={() => viewerRef.current?.scrollToPage(page + 1)} title="Next page">
-          ›
-        </button>
+        <div className="tb-group">
+          <button
+            data-act="page-prev"
+            onClick={() => viewerRef.current?.scrollToPage(Math.max(1, page - 1))}
+            aria-label="Previous page"
+            title="Previous page"
+          >
+            <Icon name="back" />
+          </button>
+          <input
+            className="page-input"
+            type="text"
+            aria-label="Page number"
+            value={pageDraft}
+            onChange={(e) => setPageDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key !== 'Enter') return
+              const n = Number(pageDraft)
+              if (Number.isFinite(n) && n >= 1 && loaded && n <= loaded.pdf.numPages) {
+                viewerRef.current?.scrollToPage(n)
+              } else {
+                setPageDraft(String(page))
+              }
+            }}
+          />
+          <span className="page-total">/ {loaded?.pdf.numPages ?? '\u2026'}</span>
+          <button
+            data-act="page-next"
+            onClick={() => viewerRef.current?.scrollToPage(page + 1)}
+            aria-label="Next page"
+            title="Next page"
+          >
+            <Icon name="forward" />
+          </button>
+        </div>
 
-        <span className="divider" />
-        <button onClick={() => zoomBy(-1)} title="Zoom out (Ctrl -)">−</button>
-        <span style={{ minWidth: '4.5ch', textAlign: 'center', color: 'var(--text-dim)' }}>
-          {Math.round(scale * 100)}%
-        </span>
-        <button onClick={() => zoomBy(1)} title="Zoom in (Ctrl +)">+</button>
-        <button onClick={() => setRotation((r) => (r + 90) % 360)} title="Rotate">
-          ⟳
-        </button>
+        <div className="tb-group">
+          <button data-act="zoom-out" onClick={() => zoomBy(-1)} aria-label="Zoom out" title="Zoom out (Ctrl -)">
+            <Icon name="minus" />
+          </button>
+          <span className="readout" style={{ minWidth: '4.5ch' }}>
+            {Math.round(scale * 100)}%
+          </span>
+          <button data-act="zoom-in" onClick={() => zoomBy(1)} aria-label="Zoom in" title="Zoom in (Ctrl +)">
+            <Icon name="plus" />
+          </button>
+          <button
+            data-act="rotate"
+            onClick={() => setRotation((r) => (r + 90) % 360)}
+            aria-label="Rotate"
+            title="Rotate"
+          >
+            <Icon name="rotate" />
+          </button>
+        </div>
 
-        <span className="divider" />
-        <button onClick={() => setPrefsOpen((v) => !v)} title="Reading mode">
-          ◐ {prefs.mode === 'normal' ? 'Normal' : prefs.mode === 'dark' ? 'Dark' : 'Sepia'}
-        </button>
-
-        <span className="divider" />
-        <button onClick={() => setImportOpen(true)} title="Import highlights and notes">
-          ⤒ Import
-        </button>
         <button
-          onClick={() => void exportNotes()}
-          disabled={highlights.all.length === 0}
-          title={
-            highlights.all.length === 0
-              ? 'Nothing to export yet'
-              : 'Export highlights and notes'
-          }
+          data-act="reading-mode"
+          className="outline"
+          onClick={() => setPrefsOpen((v) => !v)}
+          aria-expanded={prefsOpen}
+          title="Reading mode"
         >
-          ⤓ Export
+          <Icon name="contrast" />
+          {prefs.mode === 'normal' ? 'Normal' : prefs.mode === 'dark' ? 'Dark' : 'Sepia'}
         </button>
+
+        <div className="tb-group">
+          <button
+            data-act="import"
+            onClick={() => setImportOpen(true)}
+            aria-label="Import highlights and notes"
+            title="Import highlights and notes"
+          >
+            <Icon name="import" />
+          </button>
+          <button
+            data-act="export"
+            onClick={() => void exportNotes()}
+            disabled={highlights.all.length === 0}
+            aria-label="Export highlights and notes"
+            title={
+              highlights.all.length === 0
+                ? 'Nothing to export yet'
+                : 'Export highlights and notes'
+            }
+          >
+            <Icon name="export" />
+          </button>
+        </div>
 
         {prefsOpen && (
           <ReadingModePopover prefs={prefs} onChange={setPrefs} onClose={() => setPrefsOpen(false)} />
@@ -414,19 +472,25 @@ export function App(): React.JSX.Element {
         />
       )}
 
-      {error && <Toast message={error} onDismiss={() => setError(null)} />}
+      {notice && <Toast notice={notice} onDismiss={() => setNotice(null)} />}
     </div>
   )
 }
 
-function Toast({ message, onDismiss }: { message: string; onDismiss: () => void }): React.JSX.Element {
+function Toast({
+  notice,
+  onDismiss
+}: {
+  notice: { tone: 'error' | 'success'; message: string }
+  onDismiss: () => void
+}): React.JSX.Element {
   useEffect(() => {
     const id = window.setTimeout(onDismiss, 7000)
     return () => window.clearTimeout(id)
   }, [onDismiss])
   return (
-    <div className="toast" onClick={onDismiss}>
-      {message}
+    <div className={`toast ${notice.tone}`} role="status" onClick={onDismiss}>
+      {notice.message}
     </div>
   )
 }
