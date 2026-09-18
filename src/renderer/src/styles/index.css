@@ -4,32 +4,133 @@
    there is no visible clue why. */
 @import 'pdfjs-dist/web/pdf_viewer.css';
 
+/* Self-hosted: an offline desktop app must never reach for a font CDN. Latin and
+   latin-ext only — anything else falls through to the system serif. */
+@font-face {
+  font-family: 'Literata';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../assets/fonts/literata-400-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215,
+    U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Literata';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../assets/fonts/literata-400-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113,
+    U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Literata';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('../assets/fonts/literata-600-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215,
+    U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Literata';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('../assets/fonts/literata-600-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113,
+    U+2C60-2C7F, U+A720-A7FF;
+}
+
+/* ------------------------------------------------------------------- tokens */
+
 :root {
   color-scheme: dark;
-  --bg: #1b1c1f;
-  --bg-raised: #232529;
-  --bg-input: #2b2e33;
-  --border: #35383e;
-  --text: #e6e8ec;
-  --text-dim: #9aa0aa;
-  --accent: #5b9dff;
-  --accent-soft: rgba(91, 157, 255, 0.16);
-  --danger: #ff6b6b;
+
+  /* Warm neutrals — an unlit room, not a software dark theme. The page itself
+     must always be the brightest surface on screen. */
+  --bg: #191715;
+  --bg-raised: #211e1b;
+  --bg-input: #2a2723;
+  --border: #38332d;
+  --text: #ece7df;
+  --text-dim: #a49a8c;
+
+  /* Seville amber, used as ink and never as glow. It appears in exactly five
+     places: the primary button, progress fills, the active tab, the focus ring
+     and the current search hit — so the user's own highlight colours stay the
+     only other saturated thing in view. */
+  --accent: #e08a1e;
+  --accent-ink: #f5b455;
+  --accent-soft: rgba(224, 138, 30, 0.14);
+  --danger: #e5644f;
+  --ok: #6fbf73;
+
+  --s-1: 4px;
+  --s-2: 6px;
+  --s-3: 8px;
+  --s-4: 12px;
+  --s-5: 16px;
+  --s-6: 24px;
+  --s-7: 32px;
+  --s-8: 48px;
+
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-2: 0 12px 34px rgba(0, 0, 0, 0.5);
+  --shadow-page: 0 2px 10px rgba(0, 0, 0, 0.45);
+
+  --fs-xs: 11px;
+  --fs-sm: 12px;
+  --fs-md: 13px;
+  --fs-base: 14px;
+  --fs-lg: 16px;
+  --fs-xl: 20px;
+  --fs-2xl: 28px;
+
+  --lh-tight: 1.2;
+  --lh-body: 1.5;
+  --lh-reading: 1.65;
+
+  --font-sans: 'Segoe UI', system-ui, -apple-system, 'Ubuntu', 'Cantarell', 'Noto Sans',
+    'Helvetica Neue', Arial, sans-serif;
+  /* The document world: the wordmark, document titles, quoted passages. */
+  --font-serif: 'Literata', 'Iowan Old Style', Georgia, 'Times New Roman', serif;
+
+  --dur-fast: 90ms;
+  --dur-base: 160ms;
+
   --sidebar-w: 320px;
-  font-family: 'Segoe UI', system-ui, -apple-system, 'Ubuntu', 'Cantarell',
-    'Noto Sans', 'Helvetica Neue', Arial, sans-serif;
-  font-size: 14px;
+
+  font-family: var(--font-sans);
+  font-size: var(--fs-base);
 }
 
 :root[data-ui-theme='light'] {
   color-scheme: light;
-  --bg: #f3f4f6;
-  --bg-raised: #ffffff;
-  --bg-input: #eceef1;
-  --border: #d6d9de;
-  --text: #1b1c1f;
-  --text-dim: #666c76;
-  --accent-soft: rgba(91, 157, 255, 0.14);
+  --bg: #f6f2ea;
+  --bg-raised: #fffdf8;
+  --bg-input: #efe9dd;
+  --border: #e0d8c9;
+  --text: #241f1a;
+  --text-dim: #6d6357;
+  /* Darkened so amber still passes contrast on paper. */
+  --accent: #a85e08;
+  --accent-ink: #8c4d05;
+  --accent-soft: rgba(168, 94, 8, 0.12);
+  --danger: #b23b28;
+  --ok: #3f7a45;
+  --shadow-1: 0 1px 2px rgba(60, 45, 25, 0.1);
+  --shadow-2: 0 12px 34px rgba(60, 45, 25, 0.18);
+  --shadow-page: 0 2px 10px rgba(60, 45, 25, 0.22);
 }
 
 * {
@@ -47,16 +148,39 @@ body {
   background: var(--bg);
   color: var(--text);
   overflow: hidden;
+  -webkit-font-smoothing: antialiased;
 }
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ------------------------------------------------------------------ controls */
 
 button {
   font: inherit;
   color: inherit;
   background: transparent;
   border: 1px solid transparent;
-  border-radius: 6px;
-  padding: 5px 9px;
+  border-radius: var(--r-sm);
+  padding: var(--s-2) var(--s-3);
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  transition: background var(--dur-fast), border-color var(--dur-fast),
+    color var(--dur-fast);
 }
 button:hover:not(:disabled) {
   background: var(--bg-input);
@@ -67,11 +191,27 @@ button:disabled {
 }
 button.primary {
   background: var(--accent);
-  color: #fff;
+  color: #1a1207;
   border-color: var(--accent);
+  font-weight: 600;
+}
+:root[data-ui-theme='light'] button.primary {
+  color: #fffdf8;
 }
 button.primary:hover:not(:disabled) {
-  filter: brightness(1.1);
+  filter: brightness(1.08);
+}
+button.outline {
+  border-color: var(--border);
+}
+button.outline:hover:not(:disabled) {
+  border-color: var(--text-dim);
+}
+
+/* Icons inherit colour and sit on the text baseline rather than floating. */
+.icon {
+  flex: none;
+  display: block;
 }
 
 input[type='text'],
@@ -81,8 +221,8 @@ textarea {
   color: var(--text);
   background: var(--bg-input);
   border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 6px 9px;
+  border-radius: var(--r-sm);
+  padding: var(--s-2) var(--s-3);
   outline: none;
 }
 input:focus,
@@ -101,8 +241,8 @@ textarea:focus {
 .toolbar {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
+  gap: var(--s-3);
+  padding: var(--s-2) var(--s-4);
   background: var(--bg-raised);
   border-bottom: 1px solid var(--border);
   flex: none;
@@ -112,21 +252,58 @@ textarea:focus {
   flex: 1;
 }
 .toolbar .doc-title {
+  font-family: var(--font-serif);
+  font-size: var(--fs-lg);
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 40ch;
+  max-width: 36ch;
+  min-width: 0;
+}
+
+/* Segmented clusters: related controls share one trough, so the toolbar reads as
+   four groups rather than a row of eleven identical buttons. */
+.tb-group {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  background: var(--bg-input);
+  border-radius: var(--r-sm);
+  padding: 2px;
+  flex: none;
+}
+.tb-group button {
+  border-radius: calc(var(--r-sm) - 2px);
+  padding: var(--s-1) var(--s-2);
+}
+.tb-group button:hover:not(:disabled) {
+  background: var(--bg-raised);
+}
+.tb-group .readout {
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+  text-align: center;
+  padding: 0 var(--s-1);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 .toolbar .page-input {
   width: 4.5em;
   text-align: center;
+  background: var(--bg-raised);
+  border-color: transparent;
+  padding: 3px var(--s-1);
+  font-variant-numeric: tabular-nums;
 }
-.toolbar .divider {
-  width: 1px;
-  align-self: stretch;
-  background: var(--border);
-  margin: 0 4px;
+.toolbar .page-input:focus {
+  border-color: var(--accent);
+}
+.toolbar .page-total {
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  padding-right: var(--s-2);
 }
 
 .workspace {
@@ -151,24 +328,30 @@ textarea:focus {
 }
 .sidebar-tabs button {
   flex: 1;
+  justify-content: center;
   border-radius: 0;
-  padding: 9px 4px;
+  padding: var(--s-4) var(--s-1);
   color: var(--text-dim);
+  font-size: var(--fs-md);
 }
 .sidebar-tabs button[aria-selected='true'] {
   color: var(--text);
+  font-weight: 600;
   box-shadow: inset 0 -2px 0 var(--accent);
 }
 .sidebar-body {
   flex: 1;
   overflow-y: auto;
-  padding: 8px;
+  padding: var(--s-3);
 }
 .sidebar-empty {
   color: var(--text-dim);
-  padding: 24px 12px;
+  padding: var(--s-7) var(--s-5);
   text-align: center;
-  line-height: 1.6;
+  line-height: var(--lh-reading);
+  font-size: var(--fs-md);
+  max-width: 34ch;
+  margin: 0 auto;
 }
 
 /* --------------------------------------------------------------- pdf viewport */
@@ -177,16 +360,16 @@ textarea:focus {
   flex: 1;
   overflow: auto;
   background: var(--page-backdrop, #3a3d42);
-  padding: 20px 0 60px;
+  padding: var(--s-6) 0 var(--s-8);
   position: relative;
   min-width: 0;
 }
 
 .page {
   position: relative;
-  margin: 0 auto 16px;
+  margin: 0 auto var(--s-5);
   background: #fff;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+  box-shadow: var(--shadow-page);
   /* The container itself is never filtered — only the canvas inside it. */
 }
 
@@ -202,7 +385,7 @@ textarea:focus {
   align-items: center;
   justify-content: center;
   color: #9aa0aa;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   height: 100%;
   background: repeating-linear-gradient(45deg, #f4f4f4 0 10px, #ececec 10px 20px);
 }
@@ -259,12 +442,12 @@ textarea:focus {
   z-index: 40;
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 6px;
+  gap: var(--s-1);
+  padding: var(--s-2);
   background: var(--bg-raised);
   border: 1px solid var(--border);
-  border-radius: 9px;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-2);
 }
 .swatch {
   width: 22px;
@@ -273,9 +456,11 @@ textarea:focus {
   border: 2px solid transparent;
   padding: 0;
   cursor: pointer;
+  transition: transform var(--dur-fast);
 }
 .swatch:hover {
   transform: scale(1.12);
+  background: transparent;
 }
 .swatch[aria-pressed='true'] {
   border-color: var(--text);
@@ -284,62 +469,93 @@ textarea:focus {
 /* --------------------------------------------------------------- annotations */
 
 .ann-item {
+  position: relative;
   border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 8px 10px;
-  margin-bottom: 8px;
+  border-radius: var(--r-md);
+  padding: var(--s-4) var(--s-4) var(--s-3) var(--s-5);
+  margin-bottom: var(--s-3);
   background: var(--bg);
   cursor: pointer;
+  overflow: hidden;
 }
-.ann-item:hover {
-  border-color: var(--accent);
+/* The highlight's own colour as a rail down the card edge, legible at a glance
+   without competing with the text. */
+.ann-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--q, #ffe066);
+}
+.ann-item:hover,
+.ann-item:focus-within {
+  border-color: var(--text-dim);
 }
 .ann-item.active {
   border-color: var(--accent);
   background: var(--accent-soft);
 }
 .ann-item .quote {
-  border-left: 3px solid var(--q, #ffe066);
-  padding-left: 8px;
-  font-size: 13px;
-  line-height: 1.5;
-  max-height: 6.5em;
+  font-family: var(--font-serif);
+  font-size: var(--fs-md);
+  line-height: var(--lh-reading);
+  /* Clamped rather than fading the last line: a fade mask cannot tell whether
+     the text actually overflowed, so it dimmed every short quote to nothing. */
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  /* Fade the cut rather than slicing a line in half. */
-  mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 1.3em), transparent 100%);
 }
 .ann-item .meta {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-top: 6px;
-  font-size: 11px;
+  gap: var(--s-3);
+  margin-top: var(--s-3);
+  font-size: var(--fs-xs);
   color: var(--text-dim);
 }
 .ann-item .note-body {
-  margin-top: 7px;
-  font-size: 13px;
-  line-height: 1.5;
+  margin-top: var(--s-3);
+  font-size: var(--fs-md);
+  line-height: var(--lh-body);
   white-space: pre-wrap;
   color: var(--text);
   background: var(--bg-input);
-  border-radius: 6px;
-  padding: 6px 8px;
+  border-radius: var(--r-sm);
+  padding: var(--s-3) var(--s-3);
 }
 .ann-item textarea {
   width: 100%;
   min-height: 76px;
   resize: vertical;
-  margin-top: 7px;
+  margin-top: var(--s-3);
 }
+/* Quiet at rest; present the moment the card is pointed at or tabbed into. */
 .ann-actions {
   display: flex;
-  gap: 4px;
-  margin-top: 6px;
+  gap: var(--s-1);
+  margin-top: var(--s-2);
+  opacity: 0;
+  transition: opacity var(--dur-base);
+}
+.ann-item:hover .ann-actions,
+.ann-item:focus-within .ann-actions,
+.ann-item.active .ann-actions,
+.ann-actions.editing {
+  opacity: 1;
 }
 .ann-actions button {
-  font-size: 12px;
-  padding: 3px 7px;
+  font-size: var(--fs-sm);
+  padding: var(--s-1) var(--s-2);
+  color: var(--text-dim);
+}
+.ann-actions button:hover {
+  color: var(--text);
+}
+.ann-actions button.destructive:hover {
+  color: var(--danger);
 }
 
 /* ------------------------------------------------------------------- outline */
@@ -350,9 +566,9 @@ textarea:focus {
 .outline-row {
   display: flex;
   align-items: flex-start;
-  gap: 2px;
-  border-radius: 6px;
-  padding: 3px 4px;
+  gap: var(--s-1);
+  border-radius: var(--r-sm);
+  padding: var(--s-1) var(--s-1);
   cursor: pointer;
   line-height: 1.45;
 }
@@ -362,13 +578,21 @@ textarea:focus {
 .outline-row .twisty {
   flex: none;
   width: 16px;
-  text-align: center;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--text-dim);
-  font-size: 10px;
+}
+.outline-row .twisty svg {
+  transition: transform var(--dur-fast);
+}
+.outline-row .twisty[data-open='true'] svg {
+  transform: rotate(90deg);
 }
 .outline-row .label {
   flex: 1;
-  font-size: 13px;
+  font-size: var(--fs-md);
 }
 
 /* ------------------------------------------------------------------- library */
@@ -376,52 +600,291 @@ textarea:focus {
 .library {
   height: 100%;
   overflow-y: auto;
-  padding: 32px 40px 60px;
+  background: var(--bg);
 }
-.library h1 {
-  margin: 0 0 4px;
-  font-size: 24px;
+.library-inner {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0 var(--s-7) var(--s-8);
 }
-.library .subtitle {
+
+.library-head {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-5);
+  padding: var(--s-6) var(--s-7) var(--s-5);
+  max-width: 1120px;
+  margin: 0 auto;
+  background: var(--bg);
+}
+.wordmark {
+  font-family: var(--font-serif);
+  font-size: var(--fs-xl);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+.library-head .spacer {
+  flex: 1;
+}
+.library-head .actions {
+  display: flex;
+  gap: var(--s-3);
+  align-self: center;
+}
+
+/* A reading-progress bar, not decoration: --p is the fraction actually read. */
+.progress {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--bg-input);
+  overflow: hidden;
+}
+.progress > i {
+  display: block;
+  height: 100%;
+  width: calc(var(--p, 0) * 100%);
+  background: var(--accent);
+  border-radius: inherit;
+}
+
+.shelf-head {
+  font-size: var(--fs-md);
+  font-weight: 600;
   color: var(--text-dim);
-  margin: 0 0 24px;
+  margin: 0 0 var(--s-5);
 }
+
+/* Documents stand on a common baseline like books on a shelf, so pages of
+   different proportions line up where the eye scans for the titles. */
 .lib-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(164px, 1fr));
+  gap: var(--s-6) var(--s-5);
+  align-items: end;
 }
 .lib-card {
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--bg-raised);
-  padding: 14px;
+  border: none;
+  background: transparent;
+  padding: 0;
   cursor: pointer;
   text-align: left;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  min-height: 108px;
+  gap: var(--s-3);
+  min-width: 0;
 }
-.lib-card:hover {
-  border-color: var(--accent);
+.lib-card .thumb {
+  border-radius: var(--r-sm);
+  box-shadow: var(--shadow-1);
+  transition: box-shadow var(--dur-base), outline-color var(--dur-base);
+  outline: 1px solid var(--border);
+  outline-offset: 0;
+}
+.lib-card:hover .thumb {
+  box-shadow: var(--shadow-2);
+  outline-color: var(--text-dim);
 }
 .lib-card.missing {
-  opacity: 0.55;
+  opacity: 0.5;
+  cursor: default;
 }
 .lib-card .name {
+  font-family: var(--font-serif);
+  font-size: var(--fs-base);
   font-weight: 600;
-  line-height: 1.4;
+  line-height: 1.35;
+  /* Reserve both lines so one- and two-line titles keep the shelf baseline. */
+  min-height: 2.7em;
   word-break: break-word;
+  /* Two lines, then clip — titles are filenames and can run long. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 .lib-card .sub {
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--text-dim);
-  margin-top: auto;
+  margin-top: -2px;
 }
 .lib-card .badge {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--danger);
+}
+.lib-card .lib-actions {
+  display: flex;
+  gap: var(--s-1);
+  margin-top: var(--s-1);
+  opacity: 0;
+  transition: opacity var(--dur-base);
+}
+.lib-card:hover .lib-actions,
+.lib-card:focus-within .lib-actions {
+  opacity: 1;
+}
+.lib-card .lib-actions button {
+  font-size: var(--fs-xs);
+  padding: 2px var(--s-2);
+  color: var(--text-dim);
+}
+.lib-card .lib-actions button:hover {
+  color: var(--text);
+}
+.lib-card .lib-actions button.destructive:hover {
+  color: var(--danger);
+}
+
+/* The hero: the page you actually stopped on, not a headline. */
+.resume {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--s-6);
+  align-items: center;
+  padding: var(--s-6);
+  margin-bottom: var(--s-8);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--bg-raised);
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  transition: border-color var(--dur-base);
+}
+.resume:hover {
+  border-color: var(--text-dim);
+  background: var(--bg-raised);
+}
+/* Fixed height, width from the page's own proportions: documents of different
+   shapes stand at one size, and the card never outgrows its own content. */
+.resume .thumb {
+  width: auto;
+  height: 232px;
+  border-radius: var(--r-sm);
+  box-shadow: var(--shadow-page);
+}
+.resume .name {
+  min-height: 0;
+  font-family: var(--font-serif);
+  font-size: var(--fs-2xl);
+  font-weight: 600;
+  line-height: var(--lh-tight);
+  letter-spacing: -0.015em;
+  margin: 0 0 var(--s-4);
+  word-break: break-word;
+}
+.resume .stats {
+  display: flex;
+  gap: var(--s-6);
+  align-items: baseline;
+  font-size: var(--fs-md);
+  color: var(--text-dim);
+  margin-bottom: var(--s-3);
+}
+.resume .stats .when {
+  margin-left: auto;
+}
+.resume .stats b {
+  color: var(--text);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.resume .resume-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  margin-top: var(--s-5);
+}
+.resume .path {
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+  margin: var(--s-5) 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Quiet until pointed at, so "Continue reading" is the only call in the hero. */
+.resume .lib-actions {
+  display: flex;
+  gap: var(--s-1);
+  opacity: 0;
+  transition: opacity var(--dur-base);
+}
+.resume:hover .lib-actions,
+.resume:focus-within .lib-actions {
+  opacity: 1;
+}
+.resume .lib-actions button {
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+}
+.resume .lib-actions button:hover {
+  color: var(--text);
+}
+.resume .lib-actions button.destructive:hover {
+  color: var(--danger);
+}
+
+/* A page render, or a quiet stand-in when none has been made yet. */
+.thumb {
+  position: relative;
+  display: block;
+  width: 100%;
+  background: var(--bg-input);
+  overflow: hidden;
+}
+.thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.thumb .thumb-fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  padding: var(--s-3);
+  font-family: var(--font-serif);
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+  /* Suggests ruled text without pretending to be a real page. */
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0 9px,
+    var(--border) 9px 10px
+  );
+  mask-image: linear-gradient(to bottom, #000 30%, transparent 90%);
+}
+.thumb .progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  border-radius: 0;
+  max-width: none;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.library-empty {
+  max-width: 46ch;
+  padding: var(--s-8) 0;
+}
+.library-empty h2 {
+  font-family: var(--font-serif);
+  font-size: var(--fs-2xl);
+  font-weight: 600;
+  line-height: var(--lh-tight);
+  margin: 0 0 var(--s-4);
+}
+.library-empty p {
+  color: var(--text-dim);
+  line-height: var(--lh-reading);
+  margin: 0 0 var(--s-6);
 }
 
 /* ------------------------------------------------------------------ settings */
@@ -429,45 +892,50 @@ textarea:focus {
 .popover {
   position: absolute;
   top: 100%;
-  right: 8px;
-  margin-top: 6px;
+  right: var(--s-3);
+  margin-top: var(--s-2);
   z-index: 50;
   width: 280px;
   background: var(--bg-raised);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.5);
-  padding: 14px;
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-2);
+  padding: var(--s-5);
 }
 .popover h3 {
-  margin: 0 0 10px;
-  font-size: 13px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  margin: 0 0 var(--s-3);
+  font-size: var(--fs-md);
+  font-weight: 600;
   color: var(--text-dim);
 }
 .mode-row {
   display: flex;
-  gap: 6px;
-  margin-bottom: 14px;
+  gap: var(--s-2);
+  margin-bottom: var(--s-5);
 }
 .mode-row button {
   flex: 1;
+  justify-content: center;
   border: 1px solid var(--border);
+  font-size: var(--fs-md);
 }
 .mode-row button[aria-pressed='true'] {
   border-color: var(--accent);
   background: var(--accent-soft);
+  font-weight: 600;
 }
 .slider-row {
-  margin-bottom: 12px;
+  margin-bottom: var(--s-4);
 }
 .slider-row label {
   display: flex;
   justify-content: space-between;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-dim);
-  margin-bottom: 4px;
+  margin-bottom: var(--s-1);
+}
+.slider-row label span:last-child {
+  font-variant-numeric: tabular-nums;
 }
 .slider-row input[type='range'] {
   width: 100%;
@@ -479,8 +947,8 @@ textarea:focus {
 .search-bar {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px;
+  gap: var(--s-2);
+  padding: var(--s-3);
   border-bottom: 1px solid var(--border);
   flex: none;
 }
@@ -489,64 +957,86 @@ textarea:focus {
   min-width: 0;
 }
 .search-count {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-dim);
   white-space: nowrap;
   min-width: 8ch;
   text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 .search-opts {
   display: flex;
-  gap: 10px;
-  padding: 0 8px 8px;
-  font-size: 12px;
+  gap: var(--s-4);
+  padding: 0 var(--s-3) var(--s-3);
+  font-size: var(--fs-sm);
   color: var(--text-dim);
   flex: none;
 }
 .search-opts label {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--s-1);
   cursor: pointer;
 }
+.search-opts input[type='checkbox'] {
+  accent-color: var(--accent);
+}
 .search-result {
-  border-radius: 7px;
-  padding: 7px 9px;
+  border-radius: var(--r-sm);
+  padding: var(--s-3) var(--s-3);
   cursor: pointer;
-  font-size: 13px;
-  line-height: 1.5;
-  margin-bottom: 3px;
+  font-size: var(--fs-md);
+  line-height: var(--lh-body);
+  margin-bottom: var(--s-1);
 }
 .search-result:hover {
   background: var(--bg-input);
 }
 .search-result.current {
   background: var(--accent-soft);
+  box-shadow: inset 2px 0 0 var(--accent);
 }
 .search-result mark {
   background: rgba(255, 170, 0, 0.5);
   color: inherit;
   border-radius: 2px;
 }
+:root[data-ui-theme='light'] .search-result mark {
+  background: rgba(224, 138, 30, 0.35);
+}
 .search-result .pg {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--text-dim);
   display: block;
 }
 
+/* -------------------------------------------------------------------- toast */
+
 .toast {
   position: fixed;
-  bottom: 22px;
+  bottom: var(--s-6);
   left: 50%;
   transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
   background: var(--bg-raised);
-  border: 1px solid var(--danger);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
   color: var(--text);
-  padding: 10px 16px;
-  border-radius: 8px;
+  padding: var(--s-4) var(--s-5);
+  border-radius: var(--r-sm);
   z-index: 100;
-  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow-2);
   max-width: 70ch;
+  line-height: var(--lh-body);
+  cursor: pointer;
+}
+.toast.error {
+  border-left-color: var(--danger);
+}
+.toast.success {
+  border-left-color: var(--ok);
 }
 
 /* ------------------------------------------------------------------- modal */
@@ -566,31 +1056,31 @@ textarea:focus {
   max-width: calc(100vw - 48px);
   background: var(--bg-raised);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.5);
-  padding: 18px;
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-2);
+  padding: var(--s-6);
 }
 .modal h3 {
-  margin: 0 0 14px;
-  font-size: 13px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-dim);
+  margin: 0 0 var(--s-5);
+  font-family: var(--font-serif);
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  color: var(--text);
 }
 .modal-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
-  margin-top: 16px;
+  gap: var(--s-3);
+  margin-top: var(--s-5);
 }
 
 .dropzone {
-  border: 2px dashed var(--border);
-  border-radius: 10px;
-  padding: 30px 16px;
+  border: 1px dashed var(--border);
+  border-radius: var(--r-md);
+  padding: var(--s-7) var(--s-5);
   text-align: center;
   color: var(--text-dim);
-  transition: border-color 0.12s, background 0.12s;
+  transition: border-color var(--dur-base), background var(--dur-base);
 }
 .dropzone.over {
   border-color: var(--accent);
@@ -601,34 +1091,34 @@ textarea:focus {
 }
 .dropzone-main {
   color: var(--text);
-  font-size: 14px;
+  font-size: var(--fs-base);
 }
 .dropzone-hint {
-  margin-top: 4px !important;
-  font-size: 12px;
+  margin-top: var(--s-1) !important;
+  font-size: var(--fs-sm);
 }
 
 .import-summary {
-  margin: 0 0 10px;
-  line-height: 1.55;
+  margin: 0 0 var(--s-3);
+  line-height: var(--lh-reading);
 }
 .import-note {
-  margin: 0 0 6px;
-  font-size: 12px;
+  margin: 0 0 var(--s-2);
+  font-size: var(--fs-sm);
   color: var(--text-dim);
-  line-height: 1.5;
+  line-height: var(--lh-body);
 }
 .import-warn {
   margin: 0;
-  font-size: 12px;
-  line-height: 1.55;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-reading);
   color: var(--text-dim);
   border-left: 2px solid var(--accent);
-  padding-left: 10px;
+  padding-left: var(--s-4);
 }
 .import-error {
-  margin: 14px 0 0;
-  font-size: 12px;
-  line-height: 1.5;
+  margin: var(--s-5) 0 0;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-body);
   color: var(--danger);
 }
