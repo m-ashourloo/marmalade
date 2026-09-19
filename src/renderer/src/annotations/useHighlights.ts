@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { Highlight, HighlightColor, NewHighlightGroup } from '@shared/types'
+import type { Highlight, HighlightColor, LabelRow, NewHighlightGroup } from '@shared/types'
 
 /**
  * The page-parts of one selection, presented as a single highlight. Geometry
@@ -21,6 +21,9 @@ export interface HighlightsState {
   create: (input: NewHighlightGroup) => Promise<Highlight[]>
   setColor: (id: number, color: HighlightColor) => Promise<void>
   setNote: (id: number, body: string) => Promise<void>
+  setLabels: (id: number, names: string[]) => Promise<void>
+  /** The library-wide label vocabulary, for the picker and the filter bar. */
+  vocabulary: LabelRow[]
   remove: (id: number) => Promise<number[]>
   /** Resync from the database after a bulk write the hook did not make itself. */
   reload: () => Promise<void>
@@ -33,7 +36,18 @@ function groupKey(h: Highlight): string {
 
 export function useHighlights(docId: number | null): HighlightsState {
   const [all, setAll] = useState<Highlight[]>([])
+  const [vocabulary, setVocabulary] = useState<LabelRow[]>([])
   const [loading, setLoading] = useState(false)
+
+  // Not keyed on docId: the vocabulary spans the library, and a label added here
+  // has to survive into the next document opened.
+  const refreshVocabulary = useCallback(async () => {
+    setVocabulary(await window.api.annotations.listLabels())
+  }, [])
+
+  useEffect(() => {
+    void refreshVocabulary()
+  }, [refreshVocabulary])
 
   useEffect(() => {
     if (docId === null) {
@@ -81,17 +95,31 @@ export function useHighlights(docId: number | null): HighlightsState {
     [replace]
   )
 
-  const remove = useCallback(async (id: number): Promise<number[]> => {
-    const removed = await window.api.annotations.deleteHl(id)
-    const gone = new Set(removed)
-    setAll((prev) => prev.filter((h) => !gone.has(h.id)))
-    return removed
-  }, [])
+  const setLabels = useCallback(
+    async (id: number, names: string[]) => {
+      replace(await window.api.annotations.setLabels(id, names))
+      // The write may have coined a label or pruned the last use of one.
+      await refreshVocabulary()
+    },
+    [replace, refreshVocabulary]
+  )
+
+  const remove = useCallback(
+    async (id: number): Promise<number[]> => {
+      const removed = await window.api.annotations.deleteHl(id)
+      const gone = new Set(removed)
+      setAll((prev) => prev.filter((h) => !gone.has(h.id)))
+      await refreshVocabulary()
+      return removed
+    },
+    [refreshVocabulary]
+  )
 
   const reload = useCallback(async () => {
     if (docId === null) return
     setAll(await window.api.annotations.listByDoc(docId))
-  }, [docId])
+    await refreshVocabulary()
+  }, [docId, refreshVocabulary])
 
   const byPage = useMemo(() => {
     const map = new Map<number, Highlight[]>()
@@ -119,5 +147,17 @@ export function useHighlights(docId: number | null): HighlightsState {
     })
   }, [all])
 
-  return { all, groups, byPage, loading, create, setColor, setNote, remove, reload }
+  return {
+    all,
+    groups,
+    byPage,
+    loading,
+    vocabulary,
+    create,
+    setColor,
+    setNote,
+    setLabels,
+    remove,
+    reload
+  }
 }

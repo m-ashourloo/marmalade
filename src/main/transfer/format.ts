@@ -30,7 +30,11 @@ const zBundleHighlight = z.object({
   textEnd: z.number().int().nonnegative().nullable().default(null),
   createdAt: z.number().int().nonnegative(),
   updatedAt: z.number().int().nonnegative(),
-  note: z.string().max(200_000).nullable().default(null)
+  note: z.string().max(200_000).nullable().default(null),
+  // Absent in bundles written before labels existed. Defaulting rather than
+  // bumping BUNDLE_VERSION keeps the format readable in both directions: an
+  // older build ignores the extra key, a newer one fills in an empty set.
+  labels: z.array(z.string().max(64)).max(32).default([])
 })
 
 export const zBundle = z.object({
@@ -70,7 +74,8 @@ export function buildBundle(doc: DocumentRow, highlights: Highlight[]): Annotati
         textEnd: h.textEnd,
         createdAt: h.createdAt,
         updatedAt: h.updatedAt,
-        note: h.note
+        note: h.note,
+        labels: h.labels
       })
     )
   }

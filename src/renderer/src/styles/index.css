@@ -558,6 +558,131 @@ textarea:focus {
   color: var(--danger);
 }
 
+/* -------------------------------------------------------------------- labels */
+
+.label-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-1);
+  margin-top: var(--s-2);
+}
+.label-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 1px var(--s-2);
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+/* Only the filter pills toggle; the chips on a note are not buttons. */
+.label-chip.filter {
+  cursor: pointer;
+}
+.label-chip.filter:hover {
+  color: var(--text);
+  border-color: var(--text-dim);
+}
+.label-chip.filter[aria-pressed='true'] {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--text);
+}
+.label-chip .label-x {
+  padding: 0;
+  font-size: var(--fs-sm);
+  line-height: 1;
+  color: var(--text-dim);
+}
+.label-chip .label-x:hover {
+  color: var(--danger);
+  background: transparent;
+}
+.label-add {
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+  padding: 1px var(--s-2);
+  border: 1px dashed var(--border);
+  border-radius: var(--r-sm);
+}
+.label-add:hover {
+  color: var(--text);
+  border-color: var(--text-dim);
+}
+
+.label-picker {
+  position: relative;
+  display: inline-flex;
+}
+.label-input {
+  width: 12ch;
+  padding: 1px var(--s-2);
+  font-size: var(--fs-xs);
+}
+/* Floated over the card rather than in flow: the row must not jump taller the
+   moment the picker opens, which would shift every note below it. */
+.label-suggestions {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  z-index: 5;
+  min-width: 14ch;
+  max-height: 180px;
+  overflow-y: auto;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  box-shadow: var(--shadow-2);
+  padding: 2px;
+}
+.label-suggestions button {
+  display: flex;
+  width: 100%;
+  gap: var(--s-2);
+  align-items: baseline;
+  justify-content: space-between;
+  font-size: var(--fs-xs);
+  padding: var(--s-1) var(--s-2);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  text-align: left;
+}
+.label-suggestions button:hover {
+  background: var(--accent-soft);
+}
+.label-suggestions .label-count {
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.notes-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-1);
+  padding: var(--s-3);
+  border-bottom: 1px solid var(--border);
+  flex: none;
+}
+.notes-count {
+  margin-left: auto;
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.filter-clear {
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+  padding: 1px var(--s-2);
+}
+.filter-clear:hover {
+  color: var(--text);
+}
+
 /* ------------------------------------------------------------------- outline */
 
 .outline-node {

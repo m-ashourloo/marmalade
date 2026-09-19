@@ -33,6 +33,7 @@ const highlight: Highlight = {
   createdAt: 1757000000000,
   updatedAt: 1757000000001,
   note: 'my note',
+  labels: ['todo']
 }
 
 function roundTrip(highlights: Highlight[] = [highlight]) {
@@ -73,7 +74,8 @@ describe('parseBundle', () => {
       textEnd: 1078,
       createdAt: 1757000000000,
       updatedAt: 1757000000001,
-      note: 'my note'
+      note: 'my note',
+      labels: ['todo']
     })
   })
 
@@ -172,5 +174,20 @@ describe('exportFileName', () => {
   it('caps a very long title', () => {
     const name = exportFileName('x'.repeat(400), 'mmnotes.json')
     expect(name).toBe(`${'x'.repeat(120)}.mmnotes.json`)
+  })
+})
+
+describe('labels in a bundle', () => {
+  it('survives a round trip', () => {
+    const b = roundTrip([{ ...highlight, labels: ['todo', 'chapter 3'] }])
+    expect(b.highlights[0].labels).toEqual(['todo', 'chapter 3'])
+  })
+
+  it('defaults to empty for a bundle written before labels existed', () => {
+    const bundle = buildBundle(doc, [highlight]) as unknown as {
+      highlights: Record<string, unknown>[]
+    }
+    delete bundle.highlights[0].labels
+    expect(parseBundle(JSON.stringify(bundle)).highlights[0].labels).toEqual([])
   })
 })

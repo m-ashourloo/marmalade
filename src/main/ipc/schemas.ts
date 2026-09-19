@@ -46,6 +46,12 @@ export const zHighlightPatch = z.object({
   rects: z.array(zNormRect).min(1).max(2000).optional()
 })
 
+/** One label name. Normalisation (trim, case folding) happens in the repo — this
+ *  is only the outer bound on what may reach it. */
+export const zLabelName = z.string().min(1).max(64)
+
+export const zLabelNames = z.array(zLabelName).max(32)
+
 export const zPosition = z.object({
   page: z.number().int().positive(),
   scroll: z.number().min(0).max(1),
