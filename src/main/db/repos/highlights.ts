@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { getDb } from '../connection'
+import * as labels from './labels'
 import { dedupeKey } from '../../transfer/format'
 import type {
   BundleHighlight,
@@ -25,6 +26,7 @@ interface RawHighlight {
   created_at: number
   updated_at: number
   note: string | null
+  labels: string
 }
 
 function toHighlight(r: RawHighlight): Highlight {
@@ -40,12 +42,21 @@ function toHighlight(r: RawHighlight): Highlight {
     textEnd: r.text_end,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
-    note: r.note
+    note: r.note,
+    labels: JSON.parse(r.labels) as string[]
   }
 }
 
+// The label subquery is ordered in an inner SELECT rather than by the aggregate,
+// so the JSON array comes back sorted and the renderer can render it as-is.
 const SELECT_WITH_NOTE = `
-  SELECT h.*, n.body AS note
+  SELECT h.*,
+         n.body AS note,
+         (SELECT json_group_array(name) FROM (
+            SELECT l.name FROM highlight_labels hl
+              JOIN labels l ON l.id = hl.label_id
+             WHERE hl.highlight_id = h.id
+             ORDER BY l.name COLLATE NOCASE)) AS labels
     FROM highlights h
     LEFT JOIN notes n ON n.highlight_id = h.id`
 
@@ -217,6 +228,36 @@ export function upsertNote(highlightId: number, body: string): Highlight[] {
 }
 
 /**
+ * Replaces the whole label set on a selection. Like the note body the set is
+ * mirrored onto every page-part, so a cross-page highlight carries the same
+ * labels whichever page it is read from. Passing [] clears it.
+ */
+export function setLabels(highlightId: number, names: string[]): Highlight[] {
+  const db = getDb()
+  const ids = memberIds(highlightId)
+  if (ids.length === 0) return []
+
+  const now = Date.now()
+  const clear = db.prepare('DELETE FROM highlight_labels WHERE highlight_id = ?')
+  const link = db.prepare(
+    'INSERT INTO highlight_labels (highlight_id, label_id) VALUES (?, ?) ON CONFLICT DO NOTHING'
+  )
+  const touch = db.prepare('UPDATE highlights SET updated_at = ? WHERE id = ?')
+
+  db.transaction(() => {
+    const labelIds = labels.ensureIds(names)
+    for (const id of ids) {
+      clear.run(id)
+      for (const labelId of labelIds) link.run(id, labelId)
+      touch.run(now, id)
+    }
+    // After the clear, a label this selection was the last holder of is dead.
+    labels.pruneOrphans()
+  })()
+  return ids.map((id) => getById(id)).filter((h): h is Highlight => h !== null)
+}
+
+/**
  * Merge imported highlights into a document. Never deletes: an incoming
  * highlight that already exists is counted and skipped, so importing the same
  * file twice is a no-op.
@@ -248,6 +289,9 @@ export function importMany(docId: number, items: BundleHighlight[]): ImportResul
     `INSERT INTO notes (doc_id, highlight_id, page, body, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?)`
   )
+  const linkLabel = db.prepare(
+    'INSERT INTO highlight_labels (highlight_id, label_id) VALUES (?, ?) ON CONFLICT DO NOTHING'
+  )
 
   db.transaction(() => {
     for (const h of items) {
@@ -276,6 +320,10 @@ export function importMany(docId: number, items: BundleHighlight[]): ImportResul
         h.updatedAt
       )
       result.added++
+
+      for (const labelId of labels.ensureIds(h.labels)) {
+        linkLabel.run(Number(info.lastInsertRowid), labelId)
+      }
 
       if (h.note && h.note.trim() !== '') {
         insertNote.run(

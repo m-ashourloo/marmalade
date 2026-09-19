@@ -50,6 +50,16 @@ export interface Highlight {
   updatedAt: number
   /** Body of the attached note, or null when the highlight has no note. */
   note: string | null
+  /** Label names, sorted, case-insensitively unique. Empty rather than null so
+   *  the renderer never has to branch on absence. */
+  labels: string[]
+}
+
+/** An entry in the library-wide label vocabulary, with how many highlight rows
+ *  carry it — a cross-page selection therefore counts once per page-part. */
+export interface LabelRow {
+  name: string
+  useCount: number
 }
 
 /** One page's share of a selection: the rects that fell on that page. */
@@ -144,6 +154,7 @@ export interface BundleHighlight {
   createdAt: number
   updatedAt: number
   note: string | null
+  labels: string[]
 }
 
 export interface AnnotationBundle {

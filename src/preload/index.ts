@@ -7,6 +7,7 @@ import type {
   HighlightPatch,
   ImportPreview,
   ImportResult,
+  LabelRow,
   NewHighlight,
   NewHighlightGroup,
   OpenedDocument,
@@ -57,7 +58,12 @@ const api = {
       ipcRenderer.invoke('ann:updateHl', id, patch),
     deleteHl: (id: number): Promise<number[]> => ipcRenderer.invoke('ann:deleteHl', id),
     upsertNote: (highlightId: number, body: string): Promise<Highlight[]> =>
-      ipcRenderer.invoke('ann:upsertNote', highlightId, body)
+      ipcRenderer.invoke('ann:upsertNote', highlightId, body),
+    /** Replaces the whole label set on a selection; [] clears it. */
+    setLabels: (highlightId: number, names: string[]): Promise<Highlight[]> =>
+      ipcRenderer.invoke('ann:setLabels', highlightId, names),
+    /** The library-wide label vocabulary, not just this document's. */
+    listLabels: (): Promise<LabelRow[]> => ipcRenderer.invoke('ann:listLabels')
   },
   transfer: {
     buildExport: (docId: number): Promise<string> =>

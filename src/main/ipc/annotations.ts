@@ -1,8 +1,9 @@
 import { ipcMain } from 'electron'
 import { z } from 'zod'
 import * as highlights from '../db/repos/highlights'
-import { zHighlightPatch, zId, zNewHighlight, zNewHighlightGroup } from './schemas'
-import type { Highlight } from '../../shared/types'
+import * as labels from '../db/repos/labels'
+import { zHighlightPatch, zId, zLabelNames, zNewHighlight, zNewHighlightGroup } from './schemas'
+import type { Highlight, LabelRow } from '../../shared/types'
 
 const zNoteBody = z.string().max(200_000)
 
@@ -35,4 +36,12 @@ export function registerAnnotationHandlers(): void {
   ipcMain.handle('ann:upsertNote', (_e, rawId: unknown, rawBody: unknown): Highlight[] =>
     highlights.upsertNote(zId.parse(rawId), zNoteBody.parse(rawBody))
   )
+
+  ipcMain.handle('ann:setLabels', (_e, rawId: unknown, rawNames: unknown): Highlight[] =>
+    highlights.setLabels(zId.parse(rawId), zLabelNames.parse(rawNames))
+  )
+
+  // The vocabulary is library-wide, so this takes no document id: a label typed
+  // in one PDF has to be suggested in the next.
+  ipcMain.handle('ann:listLabels', (): LabelRow[] => labels.listAll())
 }

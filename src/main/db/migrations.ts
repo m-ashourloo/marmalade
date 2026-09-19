@@ -91,6 +91,29 @@ CREATE TABLE thumbnails (
 ALTER TABLE highlights ADD COLUMN group_id TEXT;
 CREATE INDEX idx_highlights_group ON highlights(doc_id, group_id);
 `
+  },
+  {
+    version: 4,
+    // Labels are library-wide, not per document: a label typed in one PDF has to
+    // be offered in the next, which is the whole point of a shared vocabulary.
+    // Uniqueness is case-insensitive so "TODO" and "todo" cannot both exist.
+    // The join row is per highlight row rather than per group, matching how a
+    // note is mirrored onto every page-part of a cross-page selection.
+    sql: `
+CREATE TABLE labels (
+  id         INTEGER PRIMARY KEY,
+  name       TEXT    NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE UNIQUE INDEX idx_labels_name ON labels(name COLLATE NOCASE);
+
+CREATE TABLE highlight_labels (
+  highlight_id INTEGER NOT NULL REFERENCES highlights(id) ON DELETE CASCADE,
+  label_id     INTEGER NOT NULL REFERENCES labels(id)     ON DELETE CASCADE,
+  PRIMARY KEY (highlight_id, label_id)
+) WITHOUT ROWID;
+CREATE INDEX idx_hl_labels_label ON highlight_labels(label_id);
+`
   }
 ]
 

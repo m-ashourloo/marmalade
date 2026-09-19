@@ -6,7 +6,7 @@ import type { ViewerHandle } from './pdf/PdfViewer'
 import { OutlinePanel } from './pdf/OutlinePanel'
 import { boundingBox } from './pdf/geometry'
 import { useHighlights } from './annotations/useHighlights'
-import { AnnotationSidebar } from './annotations/AnnotationSidebar'
+import { NotesPanel } from './annotations/NotesPanel'
 import { useSearch } from './search/useSearch'
 import { SearchPanel } from './search/SearchPanel'
 import { LibraryView, useLibrary } from './library/LibraryView'
@@ -422,24 +422,25 @@ export function App(): React.JSX.Element {
 
             {tab === 'search' ? (
               <SearchPanel search={search} onGoToHit={goToHit} />
+            ) : tab === 'notes' ? (
+              <NotesPanel
+                groups={highlights.groups}
+                vocabulary={highlights.vocabulary}
+                activeId={activeHighlightId}
+                onSelect={gotoHighlight}
+                onSetColor={(id, c) => void highlights.setColor(id, c)}
+                onSetNote={(id, b) => void highlights.setNote(id, b)}
+                onSetLabels={(id, names) => void highlights.setLabels(id, names)}
+                onDelete={(id) => {
+                  void highlights.remove(id).then((removed) => {
+                    if (activeHighlightId !== null && removed.includes(activeHighlightId)) {
+                      setActiveHighlightId(null)
+                    }
+                  })
+                }}
+              />
             ) : (
               <div className="sidebar-body">
-                {tab === 'notes' && (
-                  <AnnotationSidebar
-                    groups={highlights.groups}
-                    activeId={activeHighlightId}
-                    onSelect={gotoHighlight}
-                    onSetColor={(id, c) => void highlights.setColor(id, c)}
-                    onSetNote={(id, b) => void highlights.setNote(id, b)}
-                    onDelete={(id) => {
-                      void highlights.remove(id).then((removed) => {
-                        if (activeHighlightId !== null && removed.includes(activeHighlightId)) {
-                          setActiveHighlightId(null)
-                        }
-                      })
-                    }}
-                  />
-                )}
                 {tab === 'outline' && loaded && (
                   <OutlinePanel
                     pdf={loaded.pdf}
