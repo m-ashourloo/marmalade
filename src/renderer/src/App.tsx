@@ -269,10 +269,17 @@ export function App(): React.JSX.Element {
       <div className="app">
         <LibraryView
           docs={library.docs}
+          categories={library.categories}
           onOpen={(d) => void openPath(d.path)}
           onOpenDialog={() => void openDialog()}
           onImport={() => setImportOpen(true)}
           onForget={(id) => void library.forget(id)}
+          onSetCategory={(docId, catId) => void library.setCategory(docId, catId)}
+          onToggleFavorite={(d) => void library.toggleFavorite(d)}
+          onCreateCategory={(name) => void library.createCategory(name)}
+          onFileUnderNew={(docId, name) => void library.fileUnderNew(docId, name)}
+          onRenameCategory={(id, name) => void library.renameCategory(id, name)}
+          onDeleteCategory={(id) => void library.deleteCategory(id)}
         />
         {importOpen && (
           <ImportModal

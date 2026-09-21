@@ -17,7 +17,9 @@ const doc: DocumentRow = {
   lastZoom: 1.25,
   lastOpenedAt: 1757000000000,
   createdAt: 1756000000000,
-  missing: false
+  missing: false,
+  categoryId: null,
+  favorite: false
 }
 
 const highlight: Highlight = {

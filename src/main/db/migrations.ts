@@ -114,6 +114,31 @@ CREATE TABLE highlight_labels (
 ) WITHOUT ROWID;
 CREATE INDEX idx_hl_labels_label ON highlight_labels(label_id);
 `
+  },
+  {
+    version: 5,
+    // Library shelves. Membership is a column on documents rather than a join
+    // table because a document sits on exactly one shelf -- everything with no
+    // shelf is "Others", which is the absence of a value, not a row. Deleting a
+    // category sets the column back to NULL, so its documents fall back to
+    // Others instead of vanishing with the shelf.
+    //
+    // Favourite is a flag rather than a categories row because it is orthogonal
+    // to membership: a document can be favourited and still be filed. Modelling
+    // it as a shelf would force the reader to give up the filing to star it.
+    sql: `
+CREATE TABLE categories (
+  id         INTEGER PRIMARY KEY,
+  name       TEXT    NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE UNIQUE INDEX idx_categories_name ON categories(name COLLATE NOCASE);
+
+ALTER TABLE documents ADD COLUMN category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL;
+CREATE INDEX idx_documents_category ON documents(category_id);
+ALTER TABLE documents ADD COLUMN favorite INTEGER NOT NULL DEFAULT 0;
+CREATE INDEX idx_documents_favorite ON documents(favorite) WHERE favorite = 1;
+`
   }
 ]
 
