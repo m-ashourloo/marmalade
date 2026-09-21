@@ -15,6 +15,8 @@ interface RawDoc {
   last_opened_at: number | null
   created_at: number
   missing: number
+  category_id: number | null
+  favorite: number
 }
 
 function toDoc(r: RawDoc): DocumentRow {
@@ -31,7 +33,9 @@ function toDoc(r: RawDoc): DocumentRow {
     lastZoom: r.last_zoom,
     lastOpenedAt: r.last_opened_at,
     createdAt: r.created_at,
-    missing: r.missing === 1
+    missing: r.missing === 1,
+    categoryId: r.category_id,
+    favorite: r.favorite === 1
   }
 }
 
@@ -122,6 +126,15 @@ export function savePosition(
  *  annotations are still valuable if the file comes back. */
 export function markMissing(id: number, missing: boolean): void {
   getDb().prepare('UPDATE documents SET missing = ? WHERE id = ?').run(missing ? 1 : 0, id)
+}
+
+/** Files a document on a shelf, or under Others when categoryId is null. */
+export function setCategory(id: number, categoryId: number | null): void {
+  getDb().prepare('UPDATE documents SET category_id = ? WHERE id = ?').run(categoryId, id)
+}
+
+export function setFavorite(id: number, favorite: boolean): void {
+  getDb().prepare('UPDATE documents SET favorite = ? WHERE id = ?').run(favorite ? 1 : 0, id)
 }
 
 export function remove(id: number): void {

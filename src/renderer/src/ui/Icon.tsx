@@ -20,7 +20,12 @@ const PATHS: Record<string, string> = {
   open: 'M2.5 12.5v-9h4l1.5 2h5.5v7zM2.5 5.5h11',
   folder: 'M2.5 12.5v-9h4l1.5 2h5.5v7z',
   trash: 'M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8h5.8l.6-8',
-  search: 'M7.25 2.5a4.75 4.75 0 1 0 0 9.5 4.75 4.75 0 0 0 0-9.5zM10.75 10.75 13.5 13.5'
+  search: 'M7.25 2.5a4.75 4.75 0 1 0 0 9.5 4.75 4.75 0 0 0 0-9.5zM10.75 10.75 13.5 13.5',
+  star: 'M8 2.5 9.53 6.3 13.61 6.58 10.47 9.2 11.47 13.17 8 11 4.53 13.17 5.53 9.2 2.39 6.58 6.47 6.3Z',
+  // A shelf: the library glyph tipped on its side, so "move to" reads as filing
+  // the document onto one of the rows in the rail.
+  shelf: 'M2.5 3.5h11M2.5 8h11M2.5 12.5h11M5 3.5v4.5M10.5 8v4.5',
+  close: 'M4 4l8 8M12 4l-8 8'
 }
 
 export type IconName = keyof typeof PATHS

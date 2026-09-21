@@ -30,8 +30,19 @@ export interface DocumentRow {
   lastOpenedAt: number | null
   createdAt: number
   missing: boolean
+  /** The shelf this document is filed on; null means it shows under "Others". */
+  categoryId: number | null
+  favorite: boolean
   /** Only populated by library:list — the reader does not need it. */
   highlightCount?: number
+}
+
+/** A user-made library shelf. Favourites is not one of these — it is a flag on
+ *  the document, so a starred document keeps whatever shelf it is filed on. */
+export interface CategoryRow {
+  id: number
+  name: string
+  docCount: number
 }
 
 export interface Highlight {

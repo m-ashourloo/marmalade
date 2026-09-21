@@ -13,3 +13,6 @@ packaged-out/
 
 # TypeScript incremental build info
 *.tsbuildinfo
+
+# JetBrains IDE settings are machine-local
+.idea/

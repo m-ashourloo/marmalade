@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type {
+  CategoryRow,
   DocumentMeta,
   DocumentRow,
   ExportResult,
@@ -24,7 +25,22 @@ const api = {
     openDialog: (): Promise<string | null> => ipcRenderer.invoke('library:openDialog'),
     forget: (docId: number): Promise<void> => ipcRenderer.invoke('library:forget', docId),
     revealInExplorer: (docId: number): Promise<void> =>
-      ipcRenderer.invoke('library:revealInExplorer', docId)
+      ipcRenderer.invoke('library:revealInExplorer', docId),
+    /** Every shelf with the number of documents on it. */
+    listCategories: (): Promise<CategoryRow[]> => ipcRenderer.invoke('library:listCategories'),
+    /** Creates the shelf, or returns the existing one when the name is taken. */
+    createCategory: (name: string): Promise<CategoryRow[]> =>
+      ipcRenderer.invoke('library:createCategory', name),
+    renameCategory: (categoryId: number, name: string): Promise<CategoryRow[]> =>
+      ipcRenderer.invoke('library:renameCategory', categoryId, name),
+    /** Removes the shelf; its documents fall back to Others. */
+    deleteCategory: (categoryId: number): Promise<CategoryRow[]> =>
+      ipcRenderer.invoke('library:deleteCategory', categoryId),
+    /** Files a document on a shelf. null puts it under Others. */
+    setCategory: (docId: number, categoryId: number | null): Promise<CategoryRow[]> =>
+      ipcRenderer.invoke('library:setCategory', docId, categoryId),
+    setFavorite: (docId: number, favorite: boolean): Promise<void> =>
+      ipcRenderer.invoke('library:setFavorite', docId, favorite)
   },
   doc: {
     open: (path: string): Promise<OpenedDocument> => ipcRenderer.invoke('doc:open', path),
