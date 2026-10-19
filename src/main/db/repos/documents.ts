@@ -1,10 +1,11 @@
 import { getDb } from '../connection'
-import type { DocumentRow, DocumentMeta } from '../../../shared/types'
+import type { DocumentKind, DocumentRow, DocumentMeta } from '../../../shared/types'
 
 interface RawDoc {
   id: number
   path: string
   sha256: string
+  kind: string
   file_size: number
   title: string | null
   author: string | null
@@ -24,6 +25,7 @@ function toDoc(r: RawDoc): DocumentRow {
     id: r.id,
     path: r.path,
     sha256: r.sha256,
+    kind: r.kind === 'markdown' ? 'markdown' : 'pdf',
     fileSize: r.file_size,
     title: r.title,
     author: r.author,
@@ -72,6 +74,7 @@ export function findBySha(sha256: string): DocumentRow | null {
 export function upsertOnOpen(input: {
   path: string
   sha256: string
+  kind: DocumentKind
   fileSize: number
   title: string | null
 }): { doc: DocumentRow; isNew: boolean } {
@@ -90,10 +93,10 @@ export function upsertOnOpen(input: {
 
   const info = db
     .prepare(
-      `INSERT INTO documents (path, sha256, file_size, title, last_opened_at, created_at)
-       VALUES (?, ?, ?, ?, ?, ?)`
+      `INSERT INTO documents (path, sha256, kind, file_size, title, last_opened_at, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
     )
-    .run(input.path, input.sha256, input.fileSize, input.title, now, now)
+    .run(input.path, input.sha256, input.kind, input.fileSize, input.title, now, now)
   return { doc: getById(Number(info.lastInsertRowid))!, isNew: true }
 }
 

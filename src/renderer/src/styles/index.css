@@ -370,6 +370,209 @@ textarea:focus {
   min-width: 0;
 }
 
+/* ---------------------------------------------------------- markdown viewer */
+
+/* Same gutter and paper as a PDF page, but drawn in reading-mode colours instead
+   of inverted, so images keep their colours in dark mode. */
+.md-viewer {
+  flex: 1;
+  overflow: auto;
+  background: var(--page-backdrop, #3a3d42);
+  padding: var(--s-6) var(--s-5) var(--s-8);
+  min-width: 0;
+  outline: none;
+
+  --md-paper: #fff;
+  --md-ink: #1f1d1a;
+  --md-muted: #6b6359;
+  --md-rule: #e4ded3;
+  --md-code-bg: #f4f1ea;
+  --md-link: #1d5fa8;
+  --md-scheme: light;
+}
+:root[data-reading-mode='sepia'] .md-viewer {
+  --md-paper: #f3e8d2;
+  --md-ink: #3b2f22;
+  --md-muted: #7a6a55;
+  --md-rule: #dccdb1;
+  --md-code-bg: #eadcc2;
+  --md-link: #7a4a12;
+  --md-scheme: light;
+}
+:root[data-reading-mode='dark'] .md-viewer {
+  --md-paper: #1e1f22;
+  --md-ink: #dcd8d0;
+  --md-muted: #9a958b;
+  --md-rule: #34363a;
+  --md-code-bg: #2a2b2f;
+  --md-link: #8db8ea;
+  --md-scheme: dark;
+}
+
+.md-message {
+  color: var(--text-dim);
+  text-align: center;
+  padding: var(--s-8);
+}
+
+.md-page {
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: var(--s-8) clamp(var(--s-5), 6vw, 72px);
+  background: var(--md-paper);
+  color: var(--md-ink);
+  /* The app chrome is dark-scheme; task checkboxes on light paper must not be. */
+  color-scheme: var(--md-scheme);
+  box-shadow: var(--shadow-page);
+  filter: var(--text-filter, none);
+  /* Literata has no Arabic or Hebrew glyphs (its unicode-range stops at Latin),
+     so those fall through to the first installed font here that has them. */
+  font-family: 'Literata', 'Vazirmatn', 'Noto Naskh Arabic', 'Noto Sans Hebrew', 'Segoe UI',
+    Tahoma, 'Iowan Old Style', Georgia, 'Times New Roman', serif;
+  font-size: calc(17px * var(--md-scale, 1));
+  line-height: var(--lh-reading);
+  overflow-wrap: break-word;
+  user-select: text;
+}
+.md-page > :first-child {
+  margin-top: 0;
+}
+.md-page > :last-child {
+  margin-bottom: 0;
+}
+.md-page h1,
+.md-page h2,
+.md-page h3,
+.md-page h4,
+.md-page h5,
+.md-page h6 {
+  font-weight: 600;
+  line-height: var(--lh-tight);
+  margin: 1.6em 0 0.6em;
+  scroll-margin-top: var(--s-5);
+}
+.md-page h1 {
+  font-size: 2em;
+}
+.md-page h2 {
+  font-size: 1.5em;
+  padding-bottom: 0.25em;
+  border-bottom: 1px solid var(--md-rule);
+}
+.md-page h3 {
+  font-size: 1.25em;
+}
+.md-page h4 {
+  font-size: 1.05em;
+}
+.md-page h5,
+.md-page h6 {
+  font-size: 0.95em;
+  color: var(--md-muted);
+}
+.md-page p,
+.md-page ul,
+.md-page ol,
+.md-page blockquote,
+.md-page pre,
+.md-page table {
+  margin: 0 0 1em;
+}
+.md-page ul,
+.md-page ol {
+  /* Logical, so the bullets move to the right in an RTL list. */
+  padding-inline-start: 1.6em;
+}
+.md-page li + li {
+  margin-top: 0.25em;
+}
+.md-page li > input[type='checkbox'] {
+  margin-block: 0;
+  margin-inline: -1.3em 0.4em;
+  vertical-align: middle;
+}
+.md-page li:has(> input[type='checkbox']) {
+  list-style: none;
+}
+.md-page a {
+  color: var(--md-link);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.md-page blockquote {
+  padding: 0 1em;
+  color: var(--md-muted);
+  border-inline-start: 3px solid var(--md-rule);
+}
+.md-page code {
+  /* Isolated with its own direction, so `npm install` inside a Persian sentence
+     neither reorders the sentence nor gets reordered by it. */
+  unicode-bidi: plaintext;
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, 'DejaVu Sans Mono', monospace;
+  font-size: 0.86em;
+  background: var(--md-code-bg);
+  padding: 0.12em 0.35em;
+  border-radius: 4px;
+}
+.md-page pre {
+  /* Code blocks are source code: always left to right, even in an RTL document. */
+  direction: ltr;
+  text-align: left;
+  background: var(--md-code-bg);
+  padding: var(--s-4) var(--s-5);
+  border-radius: var(--r-sm);
+  overflow-x: auto;
+  line-height: 1.45;
+}
+.md-page pre code {
+  unicode-bidi: normal;
+  background: none;
+  padding: 0;
+  font-size: 0.82em;
+}
+.md-page hr {
+  border: 0;
+  border-top: 1px solid var(--md-rule);
+  margin: 2em 0;
+}
+.md-page table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-size: 0.92em;
+}
+.md-page th,
+.md-page td {
+  border: 1px solid var(--md-rule);
+  padding: 0.35em 0.75em;
+}
+.md-page th {
+  font-weight: 600;
+  background: var(--md-code-bg);
+}
+.md-page img {
+  max-width: 100%;
+  height: auto;
+}
+/* An image that could not be loaded is replaced by its alt text. */
+.md-page .md-img-missing {
+  display: inline-block;
+  padding: 0.2em 0.5em;
+  border: 1px dashed var(--md-rule);
+  color: var(--md-muted);
+  font-size: 0.85em;
+  font-style: italic;
+}
+/* Raw HTML from the source, shown as text rather than run. */
+.md-page .md-raw {
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, 'DejaVu Sans Mono', monospace;
+  font-size: 0.8em;
+  color: var(--md-muted);
+  white-space: pre-wrap;
+}
+
 /* Sized only during a Ctrl+wheel gesture, to keep the scroll extent open. */
 .zoom-extent {
   position: absolute;
@@ -1292,6 +1495,18 @@ textarea:focus {
     var(--border) 9px 10px
   );
   mask-image: linear-gradient(to bottom, #000 30%, transparent 90%);
+}
+.thumb .kind-badge {
+  position: absolute;
+  top: var(--s-2);
+  left: var(--s-2);
+  padding: 1px var(--s-2);
+  border-radius: var(--r-sm);
+  background: var(--bg-raised);
+  color: var(--text-dim);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
 }
 .thumb .progress {
   position: absolute;

@@ -16,6 +16,7 @@ import { LibraryView, useLibrary } from './library/LibraryView'
 import { useReadingPrefs } from './theme/useReadingPrefs'
 import { ReadingModePopover } from './theme/ReadingModePopover'
 import { ImportModal } from './transfer/ImportModal'
+import { MarkdownView } from './markdown/MarkdownView'
 import { Icon } from './ui/Icon'
 import { captureThumbnail } from './library/captureThumbnail'
 
@@ -46,7 +47,11 @@ export function App(): React.JSX.Element {
 
   const [prefs, setPrefs] = useReadingPrefs()
   const library = useLibrary()
-  const { doc: loaded, loading, error: loadError } = usePdfDocument(doc?.id ?? null)
+  // Markdown is view-only: no pdf.js, and so no highlights, search or outline.
+  const isMarkdown = doc?.kind === 'markdown'
+  const { doc: loaded, loading, error: loadError } = usePdfDocument(
+    doc && !isMarkdown ? doc.id : null
+  )
   const highlights = useHighlights(doc?.id ?? null)
 
   const pageBoxes = useMemo(() => loaded?.pageSizes.map((s) => s.view) ?? [], [loaded])
@@ -58,10 +63,14 @@ export function App(): React.JSX.Element {
       try {
         const { doc: opened } = await window.api.doc.open(path)
         restored.current = false
+        // Until the new view reports in, a save must not carry the old document's offset.
+        scrollFraction.current = opened.lastScroll ?? 0
         setDoc(opened)
         setPage(opened.lastPage)
         setPageDraft(String(opened.lastPage))
         if (opened.lastZoom) setScale(opened.lastZoom)
+        // Markdown's 100% is a comfortable reading size; a PDF's is often tiny.
+        else if (opened.kind === 'markdown') setScale(1)
         void library.refresh()
       } catch (err) {
         setNotice({ tone: 'error', message: (err as Error).message })
@@ -75,7 +84,7 @@ export function App(): React.JSX.Element {
     if (path) await openPath(path)
   }, [openPath])
 
-  // A .pdf double-clicked in Explorer, or passed on the command line.
+  // A document double-clicked in Explorer, or passed on the command line.
   useEffect(() => window.api.onOpenFile((path) => void openPath(path)), [openPath])
 
   // Without this, a file dropped anywhere but the import drop zone makes Chromium
@@ -108,6 +117,14 @@ export function App(): React.JSX.Element {
     scrollFraction.current = fraction
   }, [])
 
+  // Markdown is always page 1, so a page change never triggers the save below.
+  // Whole percents are coarse enough not to re-render the app on every scroll.
+  const [markdownPercent, setMarkdownPercent] = useState(0)
+  const onMarkdownPosition = useCallback((fraction: number) => {
+    scrollFraction.current = fraction
+    setMarkdownPercent(Math.round(fraction * 100))
+  }, [])
+
   // Saved shortly after the position actually changes, rather than on a timer:
   // an abrupt close (or a crash) then loses at most the last moment of reading,
   // not up to a whole interval.
@@ -127,7 +144,7 @@ export function App(): React.JSX.Element {
       window.removeEventListener('pagehide', save)
       save()
     }
-  }, [doc, page, scale])
+  }, [doc, page, scale, markdownPercent])
 
   // ---- highlight actions --------------------------------------------------
   const createHighlight = useCallback(
@@ -304,6 +321,7 @@ export function App(): React.JSX.Element {
       }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
         e.preventDefault()
+        if (isMarkdown) return
         setTab('search')
         setSidebarOpen(true)
         return
@@ -329,7 +347,7 @@ export function App(): React.JSX.Element {
         stepHistory(e.key === 'ArrowLeft' ? 'back' : 'forward')
         return
       }
-      if (e.key === 'F3') {
+      if (e.key === 'F3' && !isMarkdown) {
         e.preventDefault()
         if (e.shiftKey) search.prev()
         else search.next()
@@ -337,7 +355,7 @@ export function App(): React.JSX.Element {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [openDialog, search, stepHistory])
+  }, [openDialog, search, stepHistory, isMarkdown])
 
   // Chromium's own Ctrl+wheel zoom scales the whole UI, toolbar and all. The
   // viewer handles the gesture itself; everywhere else it must simply do nothing.
@@ -392,57 +410,61 @@ export function App(): React.JSX.Element {
           <Icon name="library" />
           Library
         </button>
-        <button
-          data-act="sidebar"
-          onClick={() => setSidebarOpen((v) => !v)}
-          aria-pressed={sidebarOpen}
-          aria-label="Toggle sidebar"
-          title="Toggle sidebar"
-        >
-          <Icon name="sidebar" />
-        </button>
+        {!isMarkdown && (
+          <button
+            data-act="sidebar"
+            onClick={() => setSidebarOpen((v) => !v)}
+            aria-pressed={sidebarOpen}
+            aria-label="Toggle sidebar"
+            title="Toggle sidebar"
+          >
+            <Icon name="sidebar" />
+          </button>
+        )}
 
-        <span className="doc-title" title={doc.path}>
+        <span className="doc-title" dir="auto" title={doc.path}>
           {doc.title ?? doc.path}
         </span>
 
         <span className="spacer" />
 
-        <div className="tb-group">
-          <button
-            data-act="page-prev"
-            onClick={() => viewerRef.current?.scrollToPage(Math.max(1, page - 1))}
-            aria-label="Previous page"
-            title="Previous page"
-          >
-            <Icon name="back" />
-          </button>
-          <input
-            className="page-input"
-            type="text"
-            aria-label="Page number"
-            value={pageDraft}
-            onChange={(e) => setPageDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key !== 'Enter') return
-              const n = Number(pageDraft)
-              if (Number.isFinite(n) && n >= 1 && loaded && n <= loaded.pdf.numPages) {
-                viewerRef.current?.scrollToPage(n)
-              } else {
-                setPageDraft(String(page))
-              }
-            }}
-          />
-          <span className="page-total">/ {loaded?.pdf.numPages ?? '\u2026'}</span>
-          <button
-            data-act="page-next"
-            onClick={() => viewerRef.current?.scrollToPage(page + 1)}
-            aria-label="Next page"
-            title="Next page"
-          >
-            <Icon name="forward" />
-          </button>
-        </div>
+        {!isMarkdown && (
+          <div className="tb-group">
+            <button
+              data-act="page-prev"
+              onClick={() => viewerRef.current?.scrollToPage(Math.max(1, page - 1))}
+              aria-label="Previous page"
+              title="Previous page"
+            >
+              <Icon name="back" />
+            </button>
+            <input
+              className="page-input"
+              type="text"
+              aria-label="Page number"
+              value={pageDraft}
+              onChange={(e) => setPageDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key !== 'Enter') return
+                const n = Number(pageDraft)
+                if (Number.isFinite(n) && n >= 1 && loaded && n <= loaded.pdf.numPages) {
+                  viewerRef.current?.scrollToPage(n)
+                } else {
+                  setPageDraft(String(page))
+                }
+              }}
+            />
+            <span className="page-total">/ {loaded?.pdf.numPages ?? '\u2026'}</span>
+            <button
+              data-act="page-next"
+              onClick={() => viewerRef.current?.scrollToPage(page + 1)}
+              aria-label="Next page"
+              title="Next page"
+            >
+              <Icon name="forward" />
+            </button>
+          </div>
+        )}
 
         <div className="tb-group">
           <button data-act="zoom-out" onClick={() => zoomBy(-1)} aria-label="Zoom out" title="Zoom out (Ctrl -)">
@@ -454,14 +476,16 @@ export function App(): React.JSX.Element {
           <button data-act="zoom-in" onClick={() => zoomBy(1)} aria-label="Zoom in" title="Zoom in (Ctrl +)">
             <Icon name="plus" />
           </button>
-          <button
-            data-act="rotate"
-            onClick={() => setRotation((r) => (r + 90) % 360)}
-            aria-label="Rotate"
-            title="Rotate"
-          >
-            <Icon name="rotate" />
-          </button>
+          {!isMarkdown && (
+            <button
+              data-act="rotate"
+              onClick={() => setRotation((r) => (r + 90) % 360)}
+              aria-label="Rotate"
+              title="Rotate"
+            >
+              <Icon name="rotate" />
+            </button>
+          )}
         </div>
 
         <button
@@ -475,29 +499,31 @@ export function App(): React.JSX.Element {
           {prefs.mode === 'normal' ? 'Normal' : prefs.mode === 'dark' ? 'Dark' : 'Sepia'}
         </button>
 
-        <div className="tb-group">
-          <button
-            data-act="import"
-            onClick={() => setImportOpen(true)}
-            aria-label="Import highlights and notes"
-            title="Import highlights and notes"
-          >
-            <Icon name="import" />
-          </button>
-          <button
-            data-act="export"
-            onClick={() => void exportNotes()}
-            disabled={highlights.all.length === 0}
-            aria-label="Export highlights and notes"
-            title={
-              highlights.all.length === 0
-                ? 'Nothing to export yet'
-                : 'Export highlights and notes'
-            }
-          >
-            <Icon name="export" />
-          </button>
-        </div>
+        {!isMarkdown && (
+          <div className="tb-group">
+            <button
+              data-act="import"
+              onClick={() => setImportOpen(true)}
+              aria-label="Import highlights and notes"
+              title="Import highlights and notes"
+            >
+              <Icon name="import" />
+            </button>
+            <button
+              data-act="export"
+              onClick={() => void exportNotes()}
+              disabled={highlights.all.length === 0}
+              aria-label="Export highlights and notes"
+              title={
+                highlights.all.length === 0
+                  ? 'Nothing to export yet'
+                  : 'Export highlights and notes'
+              }
+            >
+              <Icon name="export" />
+            </button>
+          </div>
+        )}
 
         {prefsOpen && (
           <ReadingModePopover prefs={prefs} onChange={setPrefs} onClose={() => setPrefsOpen(false)} />
@@ -505,7 +531,7 @@ export function App(): React.JSX.Element {
       </div>
 
       <div className="workspace">
-        {sidebarOpen && (
+        {sidebarOpen && !isMarkdown && (
           <div className="sidebar">
             <div className="sidebar-tabs">
               <button aria-selected={tab === 'notes'} onClick={() => setTab('notes')}>
@@ -553,6 +579,16 @@ export function App(): React.JSX.Element {
         )}
 
         {loading && <div className="sidebar-empty" style={{ flex: 1 }}>Loading document…</div>}
+
+        {isMarkdown && (
+          <MarkdownView
+            doc={doc}
+            scale={scale}
+            onPositionChange={onMarkdownPosition}
+            onOpenExternal={openExternal}
+            onZoom={onZoom}
+          />
+        )}
 
         {loaded && (
           <PdfViewer

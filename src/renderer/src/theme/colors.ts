@@ -64,6 +64,16 @@ export function pageFilter(mode: ReadingMode, dim: number, warmth: number): stri
   return parts.filter(Boolean).join(' ')
 }
 
+/**
+ * Markdown is drawn in reading-mode colours rather than inverted, so images keep
+ * their real colours in dark mode; only the dim and warmth sliders are filters.
+ */
+export function textFilter(dim: number, warmth: number): string {
+  const parts = [`brightness(${dim})`]
+  if (warmth > 0) parts.push(`sepia(${warmth})`)
+  return parts.join(' ')
+}
+
 /** Page gutter background, chosen to sit comfortably behind the filtered page. */
 export const PAGE_BACKDROP: Record<ReadingMode, string> = {
   normal: '#3a3d42',

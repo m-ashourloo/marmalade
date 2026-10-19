@@ -8,6 +8,7 @@ const doc: DocumentRow = {
   id: 1,
   path: String.raw`C:\Users\me\Documents\thesis.pdf`,
   sha256: SHA,
+  kind: 'pdf',
   fileSize: 1024,
   title: 'Thesis',
   author: 'Me',

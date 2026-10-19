@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { DEFAULT_READING_PREFS } from '@shared/types'
 import type { ReadingPrefs } from '@shared/types'
-import { PAGE_BACKDROP, pageFilter, HIGHLIGHT_BLEND } from './colors'
+import { PAGE_BACKDROP, pageFilter, textFilter, HIGHLIGHT_BLEND } from './colors'
 
 export function useReadingPrefs(): [ReadingPrefs, (p: ReadingPrefs) => void] {
   const [prefs, setPrefs] = useState<ReadingPrefs>(DEFAULT_READING_PREFS)
@@ -17,6 +17,8 @@ export function useReadingPrefs(): [ReadingPrefs, (p: ReadingPrefs) => void] {
     root.style.setProperty('--page-filter', pageFilter(prefs.mode, prefs.dim, prefs.warmth))
     root.style.setProperty('--page-backdrop', PAGE_BACKDROP[prefs.mode])
     root.style.setProperty('--highlight-blend', HIGHLIGHT_BLEND[prefs.mode])
+    root.style.setProperty('--text-filter', textFilter(prefs.dim, prefs.warmth))
+    root.dataset.readingMode = prefs.mode
     root.dataset.uiTheme = prefs.uiTheme
   }, [prefs])
 

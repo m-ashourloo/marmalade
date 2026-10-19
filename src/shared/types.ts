@@ -16,10 +16,15 @@ export interface NormRect {
   y1: number
 }
 
+/** How a document is rendered. Markdown is view-only: it has no pages, so the
+ *  page-anchored highlight model does not apply to it. */
+export type DocumentKind = 'pdf' | 'markdown'
+
 export interface DocumentRow {
   id: number
   path: string
   sha256: string
+  kind: DocumentKind
   fileSize: number
   title: string | null
   author: string | null
@@ -142,6 +147,13 @@ export interface ThumbnailRow {
   width: number
   height: number
   image: ArrayBuffer
+}
+
+/** An image a Markdown document refers to, fetched by main so the renderer's
+ *  CSP never has to allow file: or remote hosts. */
+export interface DocImage {
+  mime: string
+  bytes: ArrayBuffer
 }
 
 export interface OpenedDocument {

@@ -4,6 +4,7 @@ import { z } from 'zod'
 import type { BrowserWindow } from 'electron'
 import * as documents from '../db/repos/documents'
 import * as categories from '../db/repos/categories'
+import { OPENABLE_EXTENSIONS } from '../files/kind'
 import { zCategoryName, zId } from './schemas'
 import type { CategoryRow, DocumentRow } from '../../shared/types'
 
@@ -24,9 +25,13 @@ export function registerLibraryHandlers(getWindow: () => BrowserWindow | null): 
   ipcMain.handle('library:openDialog', async (): Promise<string | null> => {
     const win = getWindow()
     const opts = {
-      title: 'Open PDF',
+      title: 'Open document',
       properties: ['openFile' as const],
-      filters: [{ name: 'PDF documents', extensions: ['pdf'] }]
+      filters: [
+        { name: 'Documents', extensions: OPENABLE_EXTENSIONS },
+        { name: 'PDF documents', extensions: ['pdf'] },
+        { name: 'Markdown', extensions: ['md', 'markdown'] }
+      ]
     }
     const result = win
       ? await dialog.showOpenDialog(win, opts)

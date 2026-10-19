@@ -1,9 +1,20 @@
 import { z } from 'zod'
+import { kindFromPath } from '../files/kind'
 
 // contextBridge does not filter arguments — every payload crossing IPC is validated
 // here before it is allowed anywhere near the filesystem or SQL.
 
 export const zId = z.number().int().positive()
+
+export const zDocPath = z
+  .string()
+  .min(1)
+  .max(4096)
+  .refine((p) => kindFromPath(p) !== null, 'not a .pdf or Markdown path')
+
+/** An image reference exactly as written in a Markdown document; main decides
+ *  whether it is a local file, a remote URL or neither. */
+export const zImageSrc = z.string().min(1).max(4096)
 
 export const zNormRect = z.object({
   x0: z.number(),

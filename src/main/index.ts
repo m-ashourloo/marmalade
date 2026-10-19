@@ -2,6 +2,7 @@ import { cpSync, existsSync, mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { app, BrowserWindow, nativeTheme, session, shell } from 'electron'
 import { registerAllHandlers } from './ipc'
+import { kindFromPath } from './files/kind'
 import { zExternalUrl } from './ipc/schemas'
 import { closeDb, getDb } from './db/connection'
 import * as settings from './db/repos/settings'
@@ -9,7 +10,7 @@ import { DEFAULT_READING_PREFS } from '../shared/types'
 import type { ReadingPrefs } from '../shared/types'
 
 let mainWindow: BrowserWindow | null = null
-/** A .pdf passed on the command line before the window was ready. */
+/** A document passed on the command line before the window was ready. */
 let pendingFile: string | null = null
 
 /**
@@ -17,8 +18,8 @@ let pendingFile: string | null = null
  * app path in dev but the first real argument when packaged — so scan rather than
  * index. See electron/electron#32933 and #20322.
  */
-function pdfFromArgv(argv: string[]): string | null {
-  return argv.find((a) => !a.startsWith('--') && a.toLowerCase().endsWith('.pdf')) ?? null
+function docFromArgv(argv: string[]): string | null {
+  return argv.find((a) => !a.startsWith('--') && kindFromPath(a) !== null) ?? null
 }
 
 function sendOpenFile(path: string): void {
@@ -153,7 +154,7 @@ if (!app.requestSingleInstanceLock()) {
   app.quit()
 } else {
   app.on('second-instance', (_event, argv) => {
-    const file = pdfFromArgv(argv)
+    const file = docFromArgv(argv)
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore()
       mainWindow.focus()
@@ -179,7 +180,7 @@ if (!app.requestSingleInstanceLock()) {
     applyCsp()
     registerAllHandlers(() => mainWindow)
 
-    pendingFile = pdfFromArgv(process.argv)
+    pendingFile = docFromArgv(process.argv)
     createWindow()
 
     app.on('activate', () => {
