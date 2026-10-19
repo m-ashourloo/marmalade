@@ -832,6 +832,8 @@ async function main() {
       .split('\n')
       .filter((l) => /error|Error|SEVERE/.test(l))
       .filter((l) => !/devtools|DevTools|Autofill|GPU|gpu_|dxgi|Vulkan|cache|Request Autofill/i.test(l))
+      // Chromium probing for desktop services; a headless CI runner has no D-Bus.
+      .filter((l) => !/ERROR:dbus\//.test(l))
       // The malformed-import and refused-scheme checks above provoke these on purpose.
       .filter(
         (l) =>
