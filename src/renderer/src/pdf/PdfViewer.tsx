@@ -20,6 +20,7 @@ import { PageView } from './PageView'
 import { useSelection } from './useSelection'
 import type { PendingSelection } from './useSelection'
 import type { SearchHit } from '../search/types'
+import type { LinkTarget } from './links'
 import { COLOR_LABEL, SWATCH } from '../theme/colors'
 import type { HighlightColor as HC } from '@shared/types'
 
@@ -31,6 +32,8 @@ const PAGE_GAP = 16
 export interface ViewerHandle {
   scrollToPage: (page: number, yFraction?: number) => void
   scrollToRect: (page: number, rect: NormRect) => void
+  /** Where the reader is, page-relative, so it can be returned to after a zoom. */
+  getAnchor: () => { page: number; within: number }
 }
 
 export interface PdfViewerProps {
@@ -46,6 +49,7 @@ export interface PdfViewerProps {
   pendingColor: HighlightColor
   onCreateHighlight: (parts: HighlightPart[], text: string, color: HighlightColor) => void
   onHighlightClick: (id: number) => void
+  onLinkClick: (target: LinkTarget) => void
   onPositionChange: (page: number, scrollFraction: number) => void
   handleRef: React.RefObject<ViewerHandle | null>
 }
@@ -62,6 +66,7 @@ export function PdfViewer({
   pendingColor,
   onCreateHighlight,
   onHighlightClick,
+  onLinkClick,
   onPositionChange,
   handleRef
 }: PdfViewerProps): React.JSX.Element {
@@ -203,7 +208,8 @@ export function PdfViewer({
         // seconds, and the pages scrolled past would all be mounted on the way.
         el.scrollTo({ top: Math.max(0, target) })
         recomputeRef.current()
-      }
+      },
+      getAnchor: () => ({ ...anchorRef.current })
     }),
     [layout, numPages]
   )
@@ -260,6 +266,7 @@ export function PdfViewer({
                 activeHighlightIds={activeHighlightIds}
                 mode={mode}
                 onHighlightClick={onHighlightClick}
+                onLinkClick={onLinkClick}
                 onViewportReady={onViewportReady}
               />
             </div>

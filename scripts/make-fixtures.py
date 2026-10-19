@@ -6,6 +6,7 @@ Generates the test PDFs the harnesses and the run skill expect.
 Produces:
   sample.pdf  60 pages, a bookmark outline, and a unique marker per page
               ("zebra-001-quartz" ...) so search results can be asserted exactly.
+              Page 1 carries an internal link to page 31 and an external one.
   cjk.pdf     a page of CJK text, to prove the pdf.js cmaps / standard_fonts
               assets were copied into the renderer bundle.
 
@@ -31,6 +32,19 @@ PAGES = 60
 # The harnesses in scripts/ assert on this exact shape (e.g. "zebra-042-quartz"),
 # so the prefix and suffix are fixed and only the page number varies.
 MARKER = "zebra-{page:03d}-quartz"
+
+# Page 1's links, below the marker; kept identical to make-fixtures.mjs, which
+# scripts/smoke.mjs asserts against. The internal one uses a named destination.
+LINK_TARGET = "link-target"
+LINK_TARGET_PAGE = 31
+LINK_TARGET_TOP = 500
+INTERNAL_LINK = (120, "Internal link: go to page 31")
+EXTERNAL_LINK = (100, "External link: visit example.com")
+EXTERNAL_URL = "https://example.com/"
+
+
+def link_rect(y):
+    return (70, y - 3, 250, y + 12)
 
 
 def wrap(text, width):
@@ -70,6 +84,15 @@ def sample(path: Path) -> None:
         marker = MARKER.format(page=page)
         c.setFont("Helvetica", 11)
         c.drawString(72, y - 20, f"Distinctive marker for page {page}: {marker}.")
+
+        if page == 1:
+            for link_y, text in (INTERNAL_LINK, EXTERNAL_LINK):
+                c.drawString(72, link_y, text)
+            # The destination is defined on page 31; reportlab resolves it at save.
+            c.linkRect("", LINK_TARGET, link_rect(INTERNAL_LINK[0]), relative=0, thickness=0)
+            c.linkURL(EXTERNAL_URL, link_rect(EXTERNAL_LINK[0]), relative=0, thickness=0)
+        if page == LINK_TARGET_PAGE:
+            c.bookmarkPage(LINK_TARGET, fit="XYZ", left=0, top=LINK_TARGET_TOP)
 
         c.bookmarkPage(f"p{page}")
         if page % 10 == 1:

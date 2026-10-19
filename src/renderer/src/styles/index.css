@@ -422,6 +422,26 @@ textarea:focus {
   cursor: pointer;
 }
 
+/* Same tier as the hit layer: both sit above the text layer, and neither is
+   ever filtered, so links stay invisible on a dimmed or inverted page. */
+.link-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  overflow: hidden;
+  pointer-events: none;
+}
+.link-layer .link {
+  position: absolute;
+  pointer-events: auto;
+  cursor: pointer;
+  border-radius: 2px;
+}
+.link-layer .link:hover {
+  background: rgba(91, 157, 255, 0.14);
+  box-shadow: inset 0 -2px 0 rgba(91, 157, 255, 0.7);
+}
+
 .search-hit-layer {
   position: absolute;
   inset: 0;

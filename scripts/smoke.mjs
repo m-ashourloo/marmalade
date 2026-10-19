@@ -91,6 +91,20 @@ class Cdp {
     }
   }
 
+  /** A real press and release, not element.click(), which fires no mousedown. */
+  async click(x, y) {
+    await this.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y })
+    await this.send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', clickCount: 1 })
+    await this.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 1 })
+  }
+
+  /** A real key press with Alt held, e.g. altKey('ArrowLeft', 37). */
+  async altKey(key, keyCode) {
+    const base = { key, code: key, windowsVirtualKeyCode: keyCode, modifiers: 1 }
+    await this.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', ...base })
+    await this.send('Input.dispatchKeyEvent', { type: 'keyUp', ...base })
+  }
+
   close() {
     this.#ws.close()
   }
@@ -431,6 +445,90 @@ async function main() {
     check('outline navigates to the right page', outline.page === '31', JSON.stringify(outline))
     await cdp.screenshot(`${OUT}/07-outline.png`)
 
+    // ---- links ---------------------------------------------------------------
+    // Page 1 of the fixture carries an internal link (named destination, XYZ on
+    // page 31) and an external one. Scrolling there directly is not a jump, so
+    // the link click is the only history entry this step adds.
+    await cdp.eval(`document.querySelector('.viewer').scrollTop = 0; return true;`)
+    const links = await waitFor(
+      cdp,
+      `
+      const page = document.querySelector('.page[data-page="1"]');
+      const els = [...(page?.querySelectorAll('.link-layer .link') ?? [])];
+      const internal = els.find(e => e.dataset.linkKind === 'dest');
+      // The links sit at the foot of the page, below the fold at most zooms.
+      internal?.scrollIntoView({ block: 'center' });
+      const span = [...(page?.querySelectorAll('.textLayer span') ?? [])]
+        .find(s => s.textContent.includes('Internal link'));
+      const box = (e) => { const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; };
+      return {
+        count: els.length,
+        hrefs: els.map(e => e.dataset.href ?? null),
+        internal: internal ? box(internal) : null,
+        span: span ? box(span) : null
+      };
+      `,
+      (v) => v.count >= 2 && v.internal && v.span,
+      { label: 'link layer', timeout: 20000 }
+    )
+    log('links', JSON.stringify(links))
+    check('link annotations rendered on page 1', links.count >= 2, JSON.stringify(links))
+    check('external link carries its url', links.hrefs.includes('https://example.com/'),
+      JSON.stringify(links.hrefs))
+    // At the zoom left over from the zoom step, so this also proves the links
+    // are re-laid out from normalised geometry rather than captured once.
+    const spanMid = links.span ? links.span.y + links.span.h / 2 : -1
+    check('link rect sits over its text line',
+      links.internal && links.span &&
+        spanMid > links.internal.y && spanMid < links.internal.y + links.internal.h &&
+        links.span.x >= links.internal.x - 2,
+      JSON.stringify(links))
+    await cdp.screenshot(`${OUT}/07b-links.png`)
+
+    if (links.internal) {
+      await cdp.click(links.internal.x + 20, links.internal.y + links.internal.h / 2)
+    }
+    const followed = await waitFor(
+      cdp,
+      `
+      const viewer = document.querySelector('.viewer').getBoundingClientRect();
+      const p31 = document.querySelector('.page[data-page="31"]').getBoundingClientRect();
+      return {
+        page: document.querySelector('.page-input')?.value ?? null,
+        within: (viewer.top - p31.top) / p31.height
+      };
+      `,
+      (v) => v.page === '31',
+      { label: 'follow link', timeout: 15000 }
+    )
+    log('followed', JSON.stringify(followed))
+    check('internal link navigates to its page', followed.page === '31', JSON.stringify(followed))
+    // The destination's top is y=500 on an 842pt page, ~41% of the way down.
+    // The viewer's padding offsets this a little, hence the tolerance.
+    check('internal link lands on the destination line',
+      followed.within > 0.3 && followed.within < 0.5, JSON.stringify(followed))
+
+    const pageNow = `return { page: document.querySelector('.page-input')?.value ?? null };`
+    await cdp.altKey('ArrowLeft', 37)
+    const back = await waitFor(cdp, pageNow, (v) => v.page === '1', { label: 'alt+left', timeout: 10000 })
+    check('Alt+Left returns to where the link was clicked', back.page === '1', JSON.stringify(back))
+    await cdp.altKey('ArrowRight', 39)
+    const fwd = await waitFor(cdp, pageNow, (v) => v.page === '31', { label: 'alt+right', timeout: 10000 })
+    check('Alt+Right goes forward again', fwd.page === '31', JSON.stringify(fwd))
+
+    // The external click itself is not driven: it would open a real browser.
+    const refused = await cdp.eval(`
+      const tryOpen = (u) => window.api.app.openExternal(u).then(() => 'opened', () => 'refused');
+      return {
+        js: await tryOpen('javascript:alert(1)'),
+        file: await tryOpen('file:///etc/passwd'),
+        custom: await tryOpen('ms-settings:privacy')
+      };
+    `)
+    check('openExternal refuses non-web schemes',
+      refused.js === 'refused' && refused.file === 'refused' && refused.custom === 'refused',
+      JSON.stringify(refused))
+
     // ---- reading modes -----------------------------------------------------
     const modeProbe = `
       const root = getComputedStyle(document.documentElement);
@@ -649,11 +747,12 @@ async function main() {
       .split('\n')
       .filter((l) => /error|Error|SEVERE/.test(l))
       .filter((l) => !/devtools|DevTools|Autofill|GPU|gpu_|dxgi|Vulkan|cache|Request Autofill/i.test(l))
-      // The malformed-import checks above provoke these on purpose.
+      // The malformed-import and refused-scheme checks above provoke these on purpose.
       .filter(
         (l) =>
           !/handler for 'transfer:inspect'.*(not valid JSON|not a Marmalade annotations export)/.test(l)
       )
+      .filter((l) => !/handler for 'app:openExternal': ZodError/.test(l))
     log('filtered console errors:', consoleErrors.length)
     for (const e of consoleErrors.slice(0, 12)) log('  |', e.trim())
     check('no unexpected console errors', consoleErrors.length === 0)

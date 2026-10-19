@@ -5,6 +5,8 @@ import { TextLayer } from './pdfjs'
 import { normRectToViewport } from './geometry'
 import { HIGHLIGHT_FILL } from '../theme/colors'
 import type { SearchHit } from '../search/types'
+import { extractLinks } from './links'
+import type { LinkTarget, PageLink } from './links'
 
 /** 3x devicePixelRatio costs ~9x the memory of 1x for imperceptible gain. */
 const MAX_DPR = 2
@@ -24,6 +26,7 @@ export interface PageViewProps {
   activeHighlightIds: ReadonlySet<number>
   mode: ReadingMode
   onHighlightClick: (id: number) => void
+  onLinkClick: (target: LinkTarget) => void
   /** Publishes the live viewport so selection capture can convert coordinates. */
   onViewportReady: (pageNumber: number, viewport: PageViewport | null) => void
 }
@@ -41,6 +44,7 @@ function PageViewImpl({
   activeHighlightIds,
   mode,
   onHighlightClick,
+  onLinkClick,
   onViewportReady
 }: PageViewProps): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -49,6 +53,7 @@ function PageViewImpl({
   // State, not a ref: the overlays are laid out from the viewport during render,
   // so they must re-render once it exists.
   const [viewport, setViewport] = useState<PageViewport | null>(null)
+  const [links, setLinks] = useState<PageLink[]>([])
 
   const swap = rotation % 180 !== 0
   const cssWidth = (swap ? baseSize.height : baseSize.width) * scale
@@ -72,6 +77,14 @@ function PageViewImpl({
       // zoom changes rather than lagging behind rasterisation.
       setViewport(viewport)
       onViewportReady(pageNumber, viewport)
+
+      // Not awaited: links should not wait on rasterisation, nor hold it up.
+      void page.getAnnotations({ intent: 'display' }).then(
+        (annotations) => {
+          if (!disposed) setLinks(extractLinks(annotations, baseSize.view))
+        },
+        (err) => console.error(`[PageView] page ${pageNumber} annotations failed`, err)
+      )
 
       const canvas = canvasRef.current
       const textDiv = textLayerRef.current
@@ -128,6 +141,7 @@ function PageViewImpl({
     return () => {
       disposed = true
       setViewport(null)
+      setLinks([])
       renderTask?.cancel()
       textLayer?.cancel()
       onViewportReady(pageNumber, null)
@@ -138,7 +152,7 @@ function PageViewImpl({
         canvas.height = 0
       }
     }
-  }, [visible, getPage, pageNumber, scale, rotation, onViewportReady])
+  }, [visible, getPage, pageNumber, scale, rotation, onViewportReady, baseSize.view])
 
   // ---- overlay geometry ---------------------------------------------------
   // Recomputed from stored normalised coordinates on every zoom, never
@@ -216,6 +230,30 @@ function PageViewImpl({
                 ) : null
               })
             )}
+          </div>
+
+          {/* Above the text layer, as in pdf.js: a link wins over starting a
+              selection on its text. Divs, not anchors, so nothing navigates the
+              window and dragging one does not start a native link drag. */}
+          <div className="link-layer">
+            {links.map((link, i) => {
+              const style = toStyle(link.rect)
+              const url = link.target.kind === 'external' ? link.target.url : undefined
+              return style ? (
+                <div
+                  key={`link-${i}`}
+                  className="link"
+                  style={style}
+                  title={url}
+                  data-link-kind={link.target.kind}
+                  data-href={url}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onLinkClick(link.target)
+                  }}
+                />
+              ) : null
+            })}
           </div>
         </>
       ) : (

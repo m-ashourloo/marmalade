@@ -82,6 +82,7 @@ screenshot -> /tmp/pdfout/01-opened.png
 | `eval <js>` | Run JS in the renderer. Body of an async function — use `return` |
 | `click <selector>` | Real mouse click at the element's centre |
 | `clicktext <label>` | Real click on the `<button>` whose text is exactly this |
+| `hover <selector>` | Real pointer move to the element's centre (hover styles, tooltips) |
 | `drag <selector>` | Real press-drag-release across an element — **this is how you select text** |
 | `type <text>` | Real character key events into whatever has focus |
 | `key <combo>` | `Escape`, `Enter`, `F3`, `ctrl+f`, … |

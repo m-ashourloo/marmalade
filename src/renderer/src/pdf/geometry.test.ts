@@ -5,6 +5,7 @@ import {
   boundingBox,
   dedupeRects,
   normRectToViewport,
+  pdfRectToNorm,
   viewportRectToNorm,
   type Rect
 } from './geometry'
@@ -88,6 +89,34 @@ describe('viewport <-> normalised round trip', () => {
     const back = normRectToViewport(viewportRectToNorm(original, vp, BOX), vp, BOX)
     expect(back.left).toBeCloseTo(original.left, 1)
     expect(back.top).toBeCloseTo(original.top, 1)
+  })
+})
+
+describe('pdfRectToNorm', () => {
+  it('orders corners given in either order', () => {
+    const a = pdfRectToNorm([100, 200, 300, 220], BOX)
+    const b = pdfRectToNorm([300, 220, 100, 200], BOX)
+    expect(b).toEqual(a)
+    expect(a.x0).toBeCloseTo(100 / BOX[2], 6)
+    expect(a.y1).toBeCloseTo(220 / BOX[3], 6)
+  })
+
+  it('measures from a crop box that does not start at the origin', () => {
+    const cropped = [50, 100, 550, 800]
+    const n = pdfRectToNorm([50, 100, 300, 450], cropped)
+    expect(n).toEqual({ x0: 0, y0: 0, x1: 0.5, y1: 0.5 })
+  })
+
+  it('lands on the same pixels pdf.js computes, under rotation', () => {
+    const vp = viewport(1.5, 90)
+    const rect = [100, 600, 260, 615]
+    const laid = normRectToViewport(pdfRectToNorm(rect, BOX), vp, BOX)
+    const [ax, ay] = vp.convertToViewportPoint(rect[0], rect[1])
+    const [bx, by] = vp.convertToViewportPoint(rect[2], rect[3])
+    expect(laid.left).toBeCloseTo(Math.min(ax, bx), 1)
+    expect(laid.top).toBeCloseTo(Math.min(ay, by), 1)
+    expect(laid.width).toBeCloseTo(Math.abs(bx - ax), 1)
+    expect(laid.height).toBeCloseTo(Math.abs(by - ay), 1)
   })
 })
 

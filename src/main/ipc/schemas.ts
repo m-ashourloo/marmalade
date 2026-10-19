@@ -91,3 +91,18 @@ export const zSettingsKey = z.string().min(1).max(100)
 
 /** An import file's raw text. The shape inside is validated by parseBundle. */
 export const zBundleText = z.string().min(2).max(32_000_000)
+
+/** Schemes a PDF link may hand to the OS. Anything else — file:, javascript:, a
+ *  custom protocol handler — would let a document launch local programs. */
+const EXTERNAL_PROTOCOLS = new Set(['http:', 'https:', 'mailto:'])
+
+export const zExternalUrl = z
+  .string()
+  .max(2048)
+  .refine((raw) => {
+    try {
+      return EXTERNAL_PROTOCOLS.has(new URL(raw).protocol)
+    } catch {
+      return false
+    }
+  }, 'not an http, https or mailto URL')

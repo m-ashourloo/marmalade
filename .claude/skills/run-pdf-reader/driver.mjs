@@ -19,6 +19,7 @@
  *   eval <js>           run JS in the renderer; body of an async fn, use `return`
  *   click <selector>    REAL mouse click at the element's centre
  *   clicktext <label>   REAL click on the button with this exact label
+ *   hover <selector>    REAL pointer move to the element's centre, no button held
  *   drag <selector>     REAL press-drag-release across an element (selects text)
  *   type <text>         REAL character key events into the focused element
  *   key <combo>         e.g. Escape, Enter, F3, ctrl+f
@@ -198,6 +199,14 @@ async function realClick(selector) {
   say(`clicked ${selector}`)
 }
 
+async function realHover(selector) {
+  const b = await boxOf(selector)
+  // Not through mouse(): that holds the left button, which would be a drag.
+  await rpc('Input.dispatchMouseEvent', { type: 'mouseMoved', x: b.x, y: b.y, button: 'none', buttons: 0 })
+  await sleep(200)
+  say(`hovering ${selector}`)
+}
+
 /**
  * A real press-drag-release. Synthetic events and document.createRange() both
  * bypass the browser's hit-testing and its mousedown handlers, so only this path
@@ -349,6 +358,7 @@ async function run(line) {
     case 'eval': return say(JSON.stringify(await ev(rest), null, 2))
     case 'click': return realClick(rest)
     case 'clicktext': return clickText(rest)
+    case 'hover': return realHover(rest)
     case 'drag': return realDrag(rest)
     case 'type': return typeText(rest)
     case 'key': return pressKey(rest)

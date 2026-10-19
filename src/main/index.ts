@@ -2,6 +2,7 @@ import { cpSync, existsSync, mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { app, BrowserWindow, nativeTheme, session, shell } from 'electron'
 import { registerAllHandlers } from './ipc'
+import { zExternalUrl } from './ipc/schemas'
 import { closeDb, getDb } from './db/connection'
 import * as settings from './db/repos/settings'
 import { DEFAULT_READING_PREFS } from '../shared/types'
@@ -129,7 +130,8 @@ function createWindow(): void {
 
   // Anything that wants a new window goes to the real browser instead.
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith('https://') || url.startsWith('http://')) shell.openExternal(url)
+    // Same allow-list as the app:openExternal handler, so there is one policy.
+    if (zExternalUrl.safeParse(url).success) void shell.openExternal(url)
     return { action: 'deny' }
   })
 
