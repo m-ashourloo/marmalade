@@ -370,6 +370,17 @@ textarea:focus {
   min-width: 0;
 }
 
+/* Sized only during a Ctrl+wheel gesture, to keep the scroll extent open. */
+.zoom-extent {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .page {
   position: relative;
   margin: 0 auto var(--s-5);

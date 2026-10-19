@@ -6,6 +6,7 @@ import type { ViewerHandle } from './pdf/PdfViewer'
 import { OutlinePanel } from './pdf/OutlinePanel'
 import { boundingBox } from './pdf/geometry'
 import { resolveDestination } from './pdf/destinations'
+import { clampZoom, stepZoom } from './pdf/zoom'
 import type { LinkTarget } from './pdf/links'
 import { useHighlights } from './annotations/useHighlights'
 import { NotesPanel } from './annotations/NotesPanel'
@@ -18,7 +19,6 @@ import { ImportModal } from './transfer/ImportModal'
 import { Icon } from './ui/Icon'
 import { captureThumbnail } from './library/captureThumbnail'
 
-const ZOOM_STEPS = [0.5, 0.67, 0.8, 1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4]
 /** Enough to unwind a chain of footnote hops; older origins are dropped. */
 const MAX_HISTORY = 50
 type Anchor = { page: number; within: number }
@@ -339,13 +339,21 @@ export function App(): React.JSX.Element {
     return () => window.removeEventListener('keydown', onKey)
   }, [openDialog, search, stepHistory])
 
+  // Chromium's own Ctrl+wheel zoom scales the whole UI, toolbar and all. The
+  // viewer handles the gesture itself; everywhere else it must simply do nothing.
+  useEffect(() => {
+    const onWheel = (e: WheelEvent): void => {
+      if (e.ctrlKey || e.metaKey) e.preventDefault()
+    }
+    window.addEventListener('wheel', onWheel, { passive: false })
+    return () => window.removeEventListener('wheel', onWheel)
+  }, [])
+
   const zoomBy = (direction: 1 | -1): void => {
-    setScale((current) => {
-      const i = ZOOM_STEPS.findIndex((z) => z >= current - 1e-6)
-      const next = Math.max(0, Math.min(ZOOM_STEPS.length - 1, (i === -1 ? 3 : i) + direction))
-      return ZOOM_STEPS[next]
-    })
+    setScale((current) => stepZoom(current, direction))
   }
+
+  const onZoom = useCallback((next: number) => setScale(clampZoom(next)), [])
 
   // ---- render -------------------------------------------------------------
   if (!doc) {
@@ -561,6 +569,7 @@ export function App(): React.JSX.Element {
             onHighlightClick={onHighlightClick}
             onLinkClick={onLinkClick}
             onPositionChange={onPositionChange}
+            onZoom={onZoom}
             handleRef={viewerRef}
           />
         )}

@@ -105,6 +105,13 @@ class Cdp {
     await this.send('Input.dispatchKeyEvent', { type: 'keyUp', ...base })
   }
 
+  /** A real wheel event; with ctrl it is also what a touchpad pinch arrives as. */
+  async wheel(x, y, deltaY, { ctrl = false } = {}) {
+    await this.send('Input.dispatchMouseEvent', {
+      type: 'mouseWheel', x, y, deltaX: 0, deltaY, modifiers: ctrl ? 2 : 0
+    })
+  }
+
   close() {
     this.#ws.close()
   }
@@ -349,6 +356,74 @@ async function main() {
       drift.every((d) => d.endsWith(`p${startPage}`)),
       `started on p${startPage}, got ${drift.join(' ')}`
     )
+
+    // ---- Ctrl+wheel / pinch zoom ------------------------------------------
+    // The point under the cursor must stay under the cursor, and the gesture
+    // must zoom the document, not the window (Chromium's default).
+    const probeCursor = `
+      const v = document.querySelector('.viewer');
+      const r = v.getBoundingClientRect();
+      const x = r.left + r.width / 2, y = r.top + r.height / 2;
+      const p = [...document.querySelectorAll('.page')].find(p => {
+        const b = p.getBoundingClientRect(); return b.top <= y && b.bottom >= y;
+      });
+      const b = p?.getBoundingClientRect();
+      return { x, y, frac: b ? (y - b.top) / b.height : null, pageW: b?.width ?? null,
+               top: v.scrollTop, dpr: window.devicePixelRatio,
+               zoom: [...document.querySelectorAll('.toolbar span')]
+                       .map(s => s.textContent).find(t => /%/.test(t)) ?? null };`
+    const beforeWheel = await cdp.eval(probeCursor)
+    for (let i = 0; i < 3; i++) await cdp.wheel(beforeWheel.x, beforeWheel.y, -100, { ctrl: true })
+    const afterWheel = await waitFor(
+      cdp,
+      probeCursor,
+      (v) => v.zoom !== beforeWheel.zoom,
+      { label: 'ctrl+wheel zoom', timeout: 5000 }
+    )
+    log('ctrl+wheel', JSON.stringify({ before: beforeWheel, after: afterWheel }))
+    check('ctrl+wheel zooms the document',
+      afterWheel.pageW > beforeWheel.pageW * 1.3, JSON.stringify(afterWheel))
+    check('ctrl+wheel keeps the point under the cursor',
+      Math.abs(afterWheel.frac - beforeWheel.frac) < 0.01,
+      `${beforeWheel.frac} -> ${afterWheel.frac}`)
+    check('ctrl+wheel does not zoom the window', afterWheel.dpr === beforeWheel.dpr,
+      `dpr ${beforeWheel.dpr} -> ${afterWheel.dpr}`)
+
+    await cdp.wheel(afterWheel.x, afterWheel.y, 300)
+    const plain = await waitFor(cdp, probeCursor, (v) => v.top !== afterWheel.top,
+      { label: 'plain wheel', timeout: 3000 })
+    await sleep(300)
+    const plainSettled = await cdp.eval(probeCursor)
+    check('plain wheel scrolls without zooming',
+      plain.top !== afterWheel.top && plainSettled.zoom === afterWheel.zoom,
+      JSON.stringify(plainSettled))
+
+    // Zooming out from a page wider than the view: the scroller's extent shrinks
+    // under the preview, and the page used to be shoved sideways as it clamped.
+    for (let i = 0; i < 8; i++) await cdp.wheel(plainSettled.x, plainSettled.y, 40, { ctrl: true })
+    const zoomedOut = await waitFor(
+      cdp,
+      `const v = document.querySelector('.viewer').getBoundingClientRect();
+       const p = [...document.querySelectorAll('.page')]
+         .map(p => p.getBoundingClientRect()).find(b => b.bottom > v.top && b.top < v.bottom);
+       return { zoom: [...document.querySelectorAll('.toolbar span')]
+                        .map(s => s.textContent).find(t => /%/.test(t)) ?? null,
+                offCentre: Math.round((p.left + p.right) / 2 - (v.left + document.querySelector('.viewer').clientWidth / 2)),
+                fits: p.width < document.querySelector('.viewer').clientWidth };`,
+      (v) => v.zoom !== plainSettled.zoom,
+      { label: 'ctrl+wheel zoom out', timeout: 5000 }
+    )
+    check('ctrl+wheel zoom-out leaves a narrow page centred',
+      zoomedOut.fits && Math.abs(zoomedOut.offCentre) <= 2, JSON.stringify(zoomedOut))
+
+    // Later checks assume the zoom the button sequence left behind.
+    for (let i = 0; i < 12; i++) {
+      const z = await cdp.eval(`return [...document.querySelectorAll('.toolbar span')]
+        .map(s => s.textContent).find(t => /%/.test(t)) ?? null;`)
+      if (z === beforeWheel.zoom) break
+      await cdp.eval(`document.querySelector('.toolbar [data-act="zoom-in"]').click(); return true;`)
+      await sleep(150)
+    }
 
     // ---- search ----------------------------------------------------------
     await cdp.eval(`

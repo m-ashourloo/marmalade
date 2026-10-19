@@ -23,6 +23,8 @@
  *   drag <selector>     REAL press-drag-release across an element (selects text)
  *   type <text>         REAL character key events into the focused element
  *   key <combo>         e.g. Escape, Enter, F3, ctrl+f
+ *   wheel <sel> <dy> [ctrl]  REAL wheel event at the element's centre; with
+ *                       ctrl it is what a mouse Ctrl+wheel or a touchpad pinch sends
  *   set <sel> <value>   set an input/range value (React-safe)
  *   ss [name]           screenshot into the out dir
  *   sleep <ms>          wait
@@ -238,6 +240,23 @@ async function realDrag(selector) {
   say(`dragged across ${selector} -> selected: ${JSON.stringify(sel)}`)
 }
 
+async function realWheel(rest) {
+  const m = rest.match(/^(.+?)\s+(-?[\d.]+)(\s+ctrl)?$/)
+  if (!m) throw new Error('usage: wheel <selector> <deltaY> [ctrl]')
+  const [, selector, dy, ctrl] = m
+  const b = await boxOf(selector)
+  await rpc('Input.dispatchMouseEvent', {
+    type: 'mouseWheel',
+    x: b.x,
+    y: b.y,
+    deltaX: 0,
+    deltaY: Number(dy),
+    modifiers: ctrl ? 2 : 0
+  })
+  await sleep(50)
+  say(`wheel ${dy}${ctrl ? ' +ctrl' : ''} over ${selector}`)
+}
+
 const KEYS = {
   Escape: { code: 'Escape', key: 'Escape', vk: 27 },
   Enter: { code: 'Enter', key: 'Enter', vk: 13 },
@@ -362,6 +381,7 @@ async function run(line) {
     case 'drag': return realDrag(rest)
     case 'type': return typeText(rest)
     case 'key': return pressKey(rest)
+    case 'wheel': return realWheel(rest)
     case 'set': return setValue(rest)
     case 'ss': return screenshot(rest || undefined)
     case 'sleep': return sleep(Number(rest || 500))

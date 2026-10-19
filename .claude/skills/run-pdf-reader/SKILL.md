@@ -86,6 +86,7 @@ screenshot -> /tmp/pdfout/01-opened.png
 | `drag <selector>` | Real press-drag-release across an element — **this is how you select text** |
 | `type <text>` | Real character key events into whatever has focus |
 | `key <combo>` | `Escape`, `Enter`, `F3`, `ctrl+f`, … |
+| `wheel <sel> <dy> [ctrl]` | Real wheel event at the element's centre. With `ctrl` it is a Ctrl+wheel zoom (and what a touchpad pinch sends); negative `dy` zooms in. The zoom commits ~120 ms after the last event, so `sleep 300` before `state` |
 | `set <sel> <value>` | Set an input/range value the way React will notice |
 | `ss [name]` | Screenshot into the `--out` directory, auto-numbered |
 | `sleep <ms>` | Wait |
