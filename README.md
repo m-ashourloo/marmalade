@@ -100,6 +100,22 @@ npm run build:win    # installer -> dist/
 Architecture, storage internals, the end-to-end harnesses and the trap list all
 live in **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
 
+### Releases
+
+[`.github/workflows/build.yml`](.github/workflows/build.yml) typechecks, unit-tests
+and smoke-tests every pull request and push to `main`. It then packages the Windows
+installer and the Linux AppImage and `.deb`, attaching them to the run as artifacts.
+To publish a release, bump `version` in `package.json`, merge, then tag that commit
+with the same version:
+
+```bash
+git tag v1.1.0 && git push origin v1.1.0
+```
+
+The tag builds the same installers and attaches them to a GitHub Release. A tag
+that doesn't match `package.json` fails the release instead of publishing
+mislabelled files.
+
 ## Known limitations
 
 - Search-hit rectangles are derived geometrically from each text run's transform
