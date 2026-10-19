@@ -200,7 +200,10 @@ button.primary {
 :root[data-ui-theme='light'] button.primary {
   color: #fffdf8;
 }
+/* Restates the fill: the generic button:hover rule outranks button.primary and
+   would otherwise swap the amber for --bg-input under the dark ink. */
 button.primary:hover:not(:disabled) {
+  background: var(--accent);
   filter: brightness(1.08);
 }
 button.outline {
