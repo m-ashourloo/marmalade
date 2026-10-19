@@ -41,6 +41,12 @@ fileAssociations:
     name: Marmalade.Document.pdf
     description: PDF Document
     icon: build/pdf.ico
+  - ext: [md, markdown]
+    name: Marmalade.Document.md
+    description: Markdown Document
+    icon: build/icon.ico
+    # Read-only: Marmalade displays Markdown but has no editor for it.
+    role: Viewer
 
 linux:
   icon: build/icon.png
@@ -50,20 +56,21 @@ linux:
     A PDF reader with multi-colour highlighting, notes attached to highlights,
     in-document search, outline navigation and dimmed reading modes. Annotations
     are stored alongside the file rather than inside it, so the original PDF is
-    never modified.
+    never modified. Markdown files open too, for reading.
   maintainer: mohammad ashourloo <moash76@gmail.com>
   target:
     # AppImage runs on any distribution without installing anything; the .deb is
     # the native package for Ubuntu and Debian.
     - AppImage
     - deb
-  # Registers the app as a PDF handler in the desktop environment.
+  # Registers the app as a PDF and Markdown handler in the desktop environment.
   mimeTypes:
     - application/pdf
+    - text/markdown
   desktop:
     entry:
       Categories: Office;Viewer;
-      Keywords: pdf;reader;annotate;highlight;
+      Keywords: pdf;markdown;reader;annotate;highlight;
       # Lets the window manager match the window to this .desktop entry.
       StartupWMClass: marmalade
 

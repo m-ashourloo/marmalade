@@ -1,5 +1,5 @@
 import { readFile, writeFile } from 'node:fs/promises'
-import { basename } from 'node:path'
+import { basename, extname } from 'node:path'
 import { ipcMain, dialog } from 'electron'
 import type { BrowserWindow } from 'electron'
 import * as documents from '../db/repos/documents'
@@ -18,7 +18,7 @@ function bundleTextFor(docId: number): { text: string; count: number; title: str
   return {
     text: JSON.stringify(bundle, null, 2),
     count: list.length,
-    title: doc.title ?? basename(doc.path, '.pdf')
+    title: doc.title ?? basename(doc.path, extname(doc.path))
   }
 }
 
@@ -76,7 +76,7 @@ export function registerTransferHandlers(getWindow: () => BrowserWindow | null):
         ? {
             kind: 'exact',
             docId: existing.id,
-            title: existing.title ?? basename(existing.path, '.pdf')
+            title: existing.title ?? basename(existing.path, extname(existing.path))
           }
         : { kind: 'none' }
     }

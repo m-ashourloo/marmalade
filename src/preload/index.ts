@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type {
   CategoryRow,
+  DocImage,
   DocumentMeta,
   DocumentRow,
   ExportResult,
@@ -45,6 +46,11 @@ const api = {
   doc: {
     open: (path: string): Promise<OpenedDocument> => ipcRenderer.invoke('doc:open', path),
     readBytes: (docId: number): Promise<ArrayBuffer> => ipcRenderer.invoke('doc:readBytes', docId),
+    /** Markdown documents only. */
+    readText: (docId: number): Promise<string> => ipcRenderer.invoke('doc:readText', docId),
+    /** Null when the image is missing, not an image, too large or unreachable. */
+    readImage: (docId: number, src: string): Promise<DocImage | null> =>
+      ipcRenderer.invoke('doc:readImage', docId, src),
     updateMeta: (docId: number, meta: DocumentMeta): Promise<void> =>
       ipcRenderer.invoke('doc:updateMeta', docId, meta),
     savePosition: (

@@ -44,6 +44,7 @@ warmth — not a filter slapped over the window.
 | 🔖 **Outline** | Jump through the document's own bookmarks. |
 | 📚 **Library** | Recent documents, each resuming at the exact page and scroll offset you left it at. |
 | 🌗 **Reading modes** | Normal, Sepia and inverted Dark, plus brightness and warmth sliders. |
+| 📄 **Markdown** | `.md` files open in the same reader, with tables, task lists, local and web images, and the same reading modes. Right-to-left text (Persian, Arabic, Hebrew) is detected paragraph by paragraph. View only. |
 | 🔄 **Portable notes** | Export and import annotations as `.mmnotes.json`. Drop one in and it finds its PDF by hash. |
 
 ## Install
@@ -52,8 +53,8 @@ Download the installer from [Releases](../../releases) and run it. Windows will
 warn that the publisher is unknown — the binaries are unsigned — so choose
 **More info → Run anyway**.
 
-Marmalade registers as an *Open with* handler for `.pdf` but deliberately does
-**not** seize your default PDF application. To make it the default, use
+Marmalade registers as an *Open with* handler for `.pdf` and `.md` but
+deliberately does **not** seize your default application for either. To make it the default, use
 *Settings → Apps → Default apps*.
 
 Your annotations live in `%APPDATA%\Marmalade\library.db` on Windows and
@@ -80,7 +81,7 @@ Linux packages must be built on Linux — see
 
 | Shortcut | Action |
 | --- | --- |
-| `Ctrl+O` | Open a PDF |
+| `Ctrl+O` | Open a document |
 | `Ctrl+F` | Find in document |
 | `F3` / `Shift+F3` | Next / previous match |
 | `Ctrl` `+` / `-` / `0` | Zoom in / out / reset |
@@ -108,6 +109,9 @@ live in **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
 - Annotations are never written into the PDF, so other readers won't see them.
   Exporting to Markdown, or exporting an annotated copy of the PDF, is not
   implemented.
+- Markdown files are view only: no highlights, notes, search or outline. Raw
+  HTML inside a Markdown file is shown as text rather than rendered, and links
+  to other local files are not followed.
 
 ## Licence
 

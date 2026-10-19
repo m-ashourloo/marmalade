@@ -2,15 +2,17 @@
  * Node fallback for scripts/make-fixtures.py, which needs reportlab — not
  * installable on a machine whose Python has no pip. Emits the same sample.pdf
  * the harnesses assert against: 60 A4 pages, one unique marker per page, a
- * two-level bookmark outline, and two links on page 1.
+ * two-level bookmark outline, and two links on page 1. Also copies the static
+ * Markdown fixture (scripts/fixtures/) alongside it.
  *
  *   node scripts/make-fixtures.mjs <out-dir>
  *
  * Writes uncompressed PDF by hand rather than pulling in a PDF library, since
  * the only consumer is the test suite.
  */
-import { mkdirSync, writeFileSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { cpSync, mkdirSync, writeFileSync } from 'node:fs'
+import { dirname, join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 const PAGES = 60
 const W = 595.28
@@ -180,3 +182,5 @@ mkdirSync(out, { recursive: true })
 const file = join(out, 'sample.pdf')
 writeFileSync(file, build())
 console.log(`wrote ${file} (${PAGES} pages)`)
+cpSync(join(dirname(fileURLToPath(import.meta.url)), 'fixtures'), out, { recursive: true })
+console.log(`wrote ${join(out, 'sample.md')}`)

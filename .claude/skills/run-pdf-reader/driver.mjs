@@ -141,8 +141,23 @@ async function launch(pdf) {
     if (ready) break
     await sleep(250)
   }
-  if (pdf) await waitForPages()
+  if (pdf) await waitForDocument(pdf)
   say('launched')
+}
+
+/** Markdown has no text layer; its rendered article is the readiness signal. */
+async function waitForDocument(file) {
+  if (/\.(md|markdown)$/i.test(file)) return waitForMarkdown()
+  return waitForPages()
+}
+
+async function waitForMarkdown() {
+  for (let i = 0; i < 40; i++) {
+    if (await ev(`return !!document.querySelector('.md-page');`)) return true
+    await sleep(250)
+  }
+  say('warning: no Markdown rendered after 10s')
+  return false
 }
 
 async function waitForPages() {
@@ -335,7 +350,8 @@ async function state() {
   const s = await ev(`
     const hl = window.api ? await window.api.annotations.listByDoc(1).catch(() => []) : [];
     return {
-      view: document.querySelector('.viewer') ? 'reader' : 'library',
+      view: document.querySelector('.viewer, .md-viewer') ? 'reader' : 'library',
+      docKind: document.querySelector('.md-viewer') ? 'markdown' : document.querySelector('.viewer') ? 'pdf' : null,
       docTitle: document.querySelector('.doc-title')?.textContent ?? null,
       page: document.querySelector('.page-input')?.value ?? null,
       totalPages: document.querySelectorAll('.page').length || null,
@@ -361,7 +377,7 @@ async function openInRunning(pdf) {
   const p = spawn(electronPath, argv, { cwd: process.cwd(), stdio: 'ignore' })
   await sleep(4000)
   p.kill()
-  await waitForPages()
+  await waitForDocument(pdf)
   say(`opened ${pdf} in the running window`)
 }
 

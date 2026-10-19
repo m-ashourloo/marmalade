@@ -212,7 +212,7 @@ export function LibraryView({
           <div className="actions">
             <button className="primary" onClick={onOpenDialog}>
               <Icon name="open" />
-              Open a PDF
+              Open a document
             </button>
             <button className="outline" onClick={onImport} title="Import highlights and notes">
               <Icon name="import" />
@@ -228,11 +228,11 @@ export function LibraryView({
             <h2>Nothing on the shelf yet.</h2>
             <p>
               Open a PDF and Marmalade remembers the page you stopped on, along with every
-              highlight and note you leave in it.
+              highlight and note you leave in it. Markdown files open here too, for reading.
             </p>
             <button className="primary" onClick={onOpenDialog}>
               <Icon name="open" />
-              Open a PDF
+              Open a document
             </button>
           </div>
         ) : (
@@ -340,7 +340,7 @@ function ResumeCard({
       <Thumb doc={doc} thumb={thumb} progress={null} onToggleFavorite={onToggleFavorite} />
 
       <div>
-        <div className="name">{doc.title ?? doc.path}</div>
+        <div className="name" dir="auto">{doc.title ?? doc.path}</div>
 
         <div className="stats">
           {doc.pageCount > 0 && (
@@ -419,7 +419,7 @@ function ShelfCard({
         progress={progressOf(doc)}
         onToggleFavorite={onToggleFavorite}
       />
-      <div className="name">{doc.title ?? doc.path}</div>
+      <div className="name" dir="auto">{doc.title ?? doc.path}</div>
       {doc.missing && <div className="badge">File not found</div>}
       <div className="sub">{formatWhen(doc.lastOpenedAt)}</div>
       <div className="lib-actions">
@@ -540,6 +540,7 @@ function Thumb({
       ) : (
         <span className="thumb-fallback">{doc.title ?? 'PDF'}</span>
       )}
+      {doc.kind === 'markdown' && <span className="kind-badge">MD</span>}
 
       {/* Cream rather than amber: the accent is spoken for, and a starred
           document should not outshout the reader's own highlight colours. */}

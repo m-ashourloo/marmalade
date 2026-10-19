@@ -139,6 +139,14 @@ CREATE INDEX idx_documents_category ON documents(category_id);
 ALTER TABLE documents ADD COLUMN favorite INTEGER NOT NULL DEFAULT 0;
 CREATE INDEX idx_documents_favorite ON documents(favorite) WHERE favorite = 1;
 `
+  },
+  {
+    version: 6,
+    // Stored rather than re-derived from the path: identity is the hash, and a
+    // renamed file must not change how an already-known document is rendered.
+    sql: `
+ALTER TABLE documents ADD COLUMN kind TEXT NOT NULL DEFAULT 'pdf';
+`
   }
 ]
 

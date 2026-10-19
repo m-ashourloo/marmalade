@@ -4,17 +4,24 @@
  *
  * Usage: node scripts/smoke.mjs <path-to-pdf> <out-dir>
  *
+ * The Markdown checks use sample.md beside the PDF, as make-fixtures writes it.
+ *
  * Deliberately uses CDP rather than any test hook inside the app, so what is
  * exercised is exactly what ships.
  */
 import { spawn } from 'node:child_process'
-import { mkdir, rm, writeFile } from 'node:fs/promises'
-import { resolve } from 'node:path'
+import { existsSync } from 'node:fs'
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { createServer } from 'node:http'
+import { dirname, resolve } from 'node:path'
 import electronPath from 'electron'
 
 const PDF = resolve(process.argv[2])
 const OUT = resolve(process.argv[3] ?? 'smoke-out')
+const MD = resolve(dirname(PDF), 'sample.md')
 const PORT = 9223
+/** sample.md's "online" image points here, so no check depends on the internet. */
+const IMAGE_PORT = 9381
 
 const log = (...a) => console.log('[smoke]', ...a)
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -816,6 +823,9 @@ async function main() {
     check('document is in the library', afterReload.libraryCount >= 1, JSON.stringify(afterReload))
     await cdp.screenshot(`${OUT}/10-reloaded.png`)
 
+    // ---- markdown ----------------------------------------------------------
+    await markdownChecks(cdp)
+
     // ---- console errors ----------------------------------------------------
     const consoleErrors = rendererLogs
       .join('')
@@ -847,6 +857,244 @@ async function main() {
     log(`${failures.length} CHECK(S) FAILED:`)
     for (const f of failures) log('  -', f)
     process.exitCode = 1
+  }
+}
+
+async function markdownChecks(cdp) {
+  check('sample.md fixture present', existsSync(MD), MD)
+  if (!existsSync(MD)) return
+
+  const svg = await readFile(resolve(dirname(MD), 'img/swatch.svg'))
+  let remoteHits = 0
+  const server = createServer((req, res) => {
+    if (req.url === '/swatch.svg') {
+      remoteHits++
+      res.writeHead(200, { 'content-type': 'image/svg+xml' }).end(svg)
+    } else {
+      res.writeHead(404).end()
+    }
+  })
+  await new Promise((r) => server.listen(IMAGE_PORT, '127.0.0.1', r))
+
+  try {
+    const opened = await cdp.eval(`
+      const r = await window.api.doc.open(${JSON.stringify(MD)});
+      return { id: r.doc.id, kind: r.doc.kind };
+    `)
+    check('a .md file opens as a markdown document', opened.kind === 'markdown',
+      JSON.stringify(opened))
+
+    // Back to the library, then in through the card with a real click.
+    await cdp.send('Page.reload')
+    await sleep(2500)
+    const openCard = async () => {
+      const card = await cdp.eval(`
+        const card = [...document.querySelectorAll('.lib-card')]
+          .find(c => c.querySelector('.kind-badge')?.textContent === 'MD');
+        if (!card) return null;
+        card.scrollIntoView({ block: 'center' });
+        const r = card.getBoundingClientRect();
+        return { x: r.x + r.width / 2, y: r.y + r.height / 3 };
+      `)
+      if (card) await cdp.click(card.x, card.y)
+      return card
+    }
+    const card = await openCard()
+    check('library card is badged MD', card !== null)
+
+    const view = await waitFor(
+      cdp,
+      `
+      const page = document.querySelector('.md-page');
+      return page && {
+        pageNav: !!document.querySelector('.page-input'),
+        sidebar: !!document.querySelector('.sidebar'),
+        rotate: !!document.querySelector('[data-act="rotate"]'),
+        zoom: !!document.querySelector('[data-act="zoom-in"]'),
+        tableCells: page.querySelectorAll('table:first-of-type td').length,
+        headingId: !!page.querySelector('h2#table'),
+        scripts: page.querySelectorAll('script').length,
+        injected: window.__mdInjected === true,
+        rawShown: [...page.querySelectorAll('.md-raw')].some(e => e.textContent.includes('<script>')),
+        anchors: [...page.querySelectorAll('a')].map(a => a.getAttribute('href')),
+        task: page.querySelectorAll('input[type=checkbox]').length
+      };
+      `,
+      (v) => v !== null,
+      { label: 'markdown render', timeout: 15000 }
+    )
+    log('markdown view', JSON.stringify(view))
+    check('markdown renders into the reader', view !== null)
+    if (!view) return
+    check('page nav, rotate and sidebar are hidden for markdown',
+      !view.pageNav && !view.rotate && !view.sidebar && view.zoom, JSON.stringify(view))
+    check('GFM table and task list render', view.tableCells === 6 && view.task === 2,
+      JSON.stringify(view))
+    check('headings carry anchors', view.headingId)
+    check('raw HTML is shown as text, never run',
+      view.scripts === 0 && !view.injected && view.rawShown, JSON.stringify(view))
+    check('only web and fragment links survive',
+      JSON.stringify(view.anchors.map((h) => decodeURIComponent(h))) ===
+        JSON.stringify(['#deep-section-marker', '#متن-فارسی', 'https://example.com/marmalade']),
+      JSON.stringify(view.anchors))
+
+    const images = await waitFor(
+      cdp,
+      `
+      const img = (alt) => document.querySelector('.md-page img[alt="' + alt + '"]');
+      const info = (el) => el && { src: (el.getAttribute('src') ?? '').slice(0, 5), w: el.naturalWidth };
+      const absent = [...document.querySelectorAll('.md-page .md-img-missing')]
+        .find(e => e.textContent === 'Missing image');
+      return { local: info(img('Local swatch')), online: info(img('Online swatch')),
+               absent: absent ? { missing: true, tag: absent.tagName } : null };
+      `,
+      (v) => v.local?.w > 0 && v.online?.w > 0 && v.absent?.missing,
+      { label: 'markdown images', timeout: 15000 }
+    )
+    log('images', JSON.stringify(images))
+    check('local image loads through main as a blob',
+      images.local?.src === 'blob:' && images.local.w > 0, JSON.stringify(images.local))
+    check('online image loads through main as a blob',
+      images.online?.src === 'blob:' && images.online.w > 0 && remoteHits > 0,
+      JSON.stringify({ ...images.online, remoteHits }))
+    check('a missing image falls back to its alt text', images.absent?.missing === true,
+      JSON.stringify(images.absent))
+
+    // Direction is decided per block, by majority of letters, ignoring code.
+    const dirs = await cdp.eval(`
+      const page = document.querySelector('.md-page');
+      const block = (sel, text) => [...page.querySelectorAll(sel)].find(e => e.textContent.includes(text));
+      const dir = (el) => el ? getComputedStyle(el).direction : null;
+      return {
+        root: dir(page),
+        heading: dir(document.getElementById('متن-فارسی')),
+        persian: dir(block('p', 'کاملاً فارسی')),
+        startsEnglish: dir(block('p', 'React یک')),
+        englishWithPersian: dir(block('p', 'single Persian word')),
+        list: dir(block('ul', 'مورد اول')),
+        quote: dir(block('blockquote', 'نقل قولی')),
+        table: dir(block('table', 'میوه')),
+        hebrew: dir(block('p', 'בעברית')),
+        code: dir(block('pre', 'print')),
+        // One Persian item in an English list: bullet stays left, text is RTL.
+        mixedItem: (() => {
+          const li = block('li', 'پرش به');
+          const span = li?.querySelector(':scope > span[dir]');
+          return li && { item: dir(li), text: dir(span) };
+        })(),
+        english: dir(block('p', 'A fixture for'))
+      };
+    `)
+    log('directions', JSON.stringify(dirs))
+    check('RTL blocks are laid out right to left',
+      ['heading', 'persian', 'list', 'quote', 'table', 'hebrew'].every((k) => dirs[k] === 'rtl'),
+      JSON.stringify(dirs))
+    check('a Persian paragraph opening with an English word is still RTL',
+      dirs.startsEnglish === 'rtl', JSON.stringify(dirs))
+    check('English stays LTR, even with a Persian word in it',
+      dirs.english === 'ltr' && dirs.englishWithPersian === 'ltr' && dirs.root === 'ltr',
+      JSON.stringify(dirs))
+    check('code blocks stay LTR', dirs.code === 'ltr', JSON.stringify(dirs))
+    check('an RTL item in an LTR list keeps the list side, with RTL text',
+      dirs.mixedItem?.item === 'ltr' && dirs.mixedItem?.text === 'rtl', JSON.stringify(dirs.mixedItem))
+
+    const refused = await cdp.eval(`
+      const read = (s) => window.api.doc.readImage(${opened.id}, s).then(r => r === null ? 'null' : 'bytes');
+      return {
+        js: await read('javascript:alert(1)'),
+        nonImage: await read('../sample.pdf'),
+        data: await read('data:image/png;base64,AAAA')
+      };
+    `)
+    check('readImage refuses non-image files and other schemes',
+      refused.js === 'null' && refused.nonImage === 'null' && refused.data === 'null',
+      JSON.stringify(refused))
+    await cdp.screenshot(`${OUT}/11-markdown.png`)
+
+    // A real click on a fragment link scrolls to its heading.
+    const link = await cdp.eval(`
+      const a = document.querySelector('.md-page a[href="#deep-section-marker"]');
+      const r = a.getBoundingClientRect();
+      return { x: r.x + 10, y: r.y + r.height / 2 };
+    `)
+    await cdp.click(link.x, link.y)
+    // The heading is near the end, so it lands in view rather than at the very top.
+    const jumped = await waitFor(
+      cdp,
+      `
+      const el = document.querySelector('.md-viewer');
+      const v = el.getBoundingClientRect();
+      const h = document.getElementById('deep-section-marker').getBoundingClientRect();
+      return { scrollTop: Math.round(el.scrollTop), offset: Math.round(h.top - v.top),
+               height: Math.round(v.height), stillReader: true };
+      `,
+      (v) => v.scrollTop > 0 && v.offset >= 0 && v.offset < v.height,
+      { label: 'fragment link', timeout: 5000 }
+    )
+    check('fragment link scrolls its heading into view',
+      jumped.scrollTop > 0 && jumped.offset >= 0 && jumped.offset < jumped.height,
+      JSON.stringify(jumped))
+
+    const fontSize = `return parseFloat(getComputedStyle(document.querySelector('.md-page')).fontSize);`
+    const before = await cdp.eval(fontSize)
+    const zoomIn = await cdp.eval(`
+      const r = document.querySelector('[data-act="zoom-in"]').getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    `)
+    await cdp.click(zoomIn.x, zoomIn.y)
+    const after = await waitFor(cdp, fontSize, (v) => v > before, { label: 'md zoom', timeout: 5000 })
+    check('zoom scales markdown text', after > before, `${before} -> ${after}`)
+
+    // Ctrl+F belongs to PDF search; on markdown it must not open a sidebar.
+    await cdp.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'f', code: 'KeyF', windowsVirtualKeyCode: 70, modifiers: 2 })
+    await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'f', code: 'KeyF', windowsVirtualKeyCode: 70, modifiers: 2 })
+    await sleep(300)
+    check('Ctrl+F does nothing on markdown', !(await cdp.eval(`return !!document.querySelector('.sidebar')`)))
+
+    // Park halfway down, let the debounced save land, and come back.
+    await cdp.eval(`
+      const el = document.querySelector('.md-viewer');
+      el.scrollTop = (el.scrollHeight - el.clientHeight) / 2;
+      return true;
+    `)
+    await sleep(1500)
+    await cdp.send('Page.reload')
+    await sleep(2500)
+    await openCard()
+    const restored = await waitFor(
+      cdp,
+      `
+      const el = document.querySelector('.md-viewer');
+      if (!el || !document.querySelector('.md-page')) return null;
+      return { fraction: el.scrollTop / (el.scrollHeight - el.clientHeight) };
+      `,
+      (v) => v && Math.abs(v.fraction - 0.5) < 0.05,
+      { label: 'md position', timeout: 15000 }
+    )
+    check('markdown scroll position persists',
+      restored && Math.abs(restored.fraction - 0.5) < 0.05, JSON.stringify(restored))
+    await cdp.screenshot(`${OUT}/12-markdown-restored.png`)
+
+    // A PDF straight after a Markdown file must still open with pdf.js.
+    await cdp.eval(`document.querySelector('[data-act="library"]').click(); return true;`)
+    await sleep(1500)
+    const pdfCard = await cdp.eval(`
+      const card = [...document.querySelectorAll('.lib-card')].find(c => !c.querySelector('.kind-badge'));
+      card?.scrollIntoView({ block: 'center' });
+      const r = card?.getBoundingClientRect();
+      return r ? { x: r.x + r.width / 2, y: r.y + r.height / 3 } : null;
+    `)
+    if (pdfCard) await cdp.click(pdfCard.x, pdfCard.y)
+    const pdfBack = await waitFor(
+      cdp,
+      `return { pages: document.querySelectorAll('.page').length, md: !!document.querySelector('.md-viewer') };`,
+      (v) => v.pages === 60 && !v.md,
+      { label: 'pdf after md', timeout: 15000 }
+    )
+    check('a PDF opened after markdown renders with pdf.js',
+      pdfBack.pages === 60 && !pdfBack.md, JSON.stringify(pdfBack))
+  } finally {
+    server.close()
   }
 }
 

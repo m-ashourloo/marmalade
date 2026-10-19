@@ -9,10 +9,12 @@ Produces:
               Page 1 carries an internal link to page 31 and an external one.
   cjk.pdf     a page of CJK text, to prove the pdf.js cmaps / standard_fonts
               assets were copied into the renderer bundle.
+  sample.md   copied from scripts/fixtures/ with the image it references.
 
 Requires reportlab (`pip install reportlab`).
 """
 
+import shutil
 import sys
 from pathlib import Path
 
@@ -134,3 +136,5 @@ if __name__ == "__main__":
     out.mkdir(parents=True, exist_ok=True)
     sample(out / "sample.pdf")
     cjk(out / "cjk.pdf")
+    shutil.copytree(Path(__file__).parent / "fixtures", out, dirs_exist_ok=True)
+    print(f"wrote {out / 'sample.md'}")

@@ -76,9 +76,9 @@ screenshot -> /tmp/pdfout/01-opened.png
 
 | Command | What it does |
 | --- | --- |
-| `launch [pdf]` | Start the app; a PDF argument opens it via argv (the double-click path) |
+| `launch [pdf]` | Start the app; a PDF or `.md` argument opens it via argv (the double-click path). Markdown waits for `.md-page`, PDFs for the text layer |
 | `open <pdf>` | Hand a PDF to the **running** instance (exercises single-instance routing) |
-| `state` | Compact dump: view, title, page, zoom, mode, highlight counts |
+| `state` | Compact dump: view, `docKind` (`pdf`/`markdown`), title, page, zoom, mode, highlight counts |
 | `eval <js>` | Run JS in the renderer. Body of an async function — use `return` |
 | `click <selector>` | Real mouse click at the element's centre |
 | `clicktext <label>` | Real click on the `<button>` whose text is exactly this |
@@ -193,6 +193,10 @@ same `sample.pdf` (it does not produce `cjk.pdf`, so skip `verify:cjk` there):
 ```bash
 node scripts/make-fixtures.mjs /tmp/fixtures
 ```
+
+Both also copy `sample.md` and `img/swatch.svg` from `scripts/fixtures/`. Its
+"online" image points at `http://127.0.0.1:9381/swatch.svg`, which only
+`smoke.mjs` serves — driven by hand, that image shows its alt text instead.
 
 ## Existing scenario harnesses
 
