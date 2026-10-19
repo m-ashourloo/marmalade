@@ -99,6 +99,10 @@ const api = {
     setReading: (prefs: ReadingPrefs): Promise<void> =>
       ipcRenderer.invoke('settings:setReading', prefs)
   },
+  app: {
+    /** http, https and mailto only; main rejects anything else. */
+    openExternal: (url: string): Promise<void> => ipcRenderer.invoke('app:openExternal', url)
+  },
   /** Returns an unsubscribe function — React StrictMode double-mounts otherwise leak listeners. */
   onOpenFile: (cb: (path: string) => void): (() => void) => {
     const handler = (_e: unknown, path: string): void => cb(path)

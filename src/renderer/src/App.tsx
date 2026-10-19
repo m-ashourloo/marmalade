@@ -5,6 +5,9 @@ import { PdfViewer } from './pdf/PdfViewer'
 import type { ViewerHandle } from './pdf/PdfViewer'
 import { OutlinePanel } from './pdf/OutlinePanel'
 import { boundingBox } from './pdf/geometry'
+import { resolveDestination } from './pdf/destinations'
+import { clampZoom, stepZoom } from './pdf/zoom'
+import type { LinkTarget } from './pdf/links'
 import { useHighlights } from './annotations/useHighlights'
 import { NotesPanel } from './annotations/NotesPanel'
 import { useSearch } from './search/useSearch'
@@ -16,7 +19,9 @@ import { ImportModal } from './transfer/ImportModal'
 import { Icon } from './ui/Icon'
 import { captureThumbnail } from './library/captureThumbnail'
 
-const ZOOM_STEPS = [0.5, 0.67, 0.8, 1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4]
+/** Enough to unwind a chain of footnote hops; older origins are dropped. */
+const MAX_HISTORY = 50
+type Anchor = { page: number; within: number }
 type Tab = 'notes' | 'outline' | 'search'
 
 export function App(): React.JSX.Element {
@@ -188,6 +193,80 @@ export function App(): React.JSX.Element {
     []
   )
 
+  // ---- jumps and links ----------------------------------------------------
+  // Only deliberate jumps (links, bookmarks) are recorded. Stepping through
+  // search hits is not, or one search would bury the place a link left from.
+  const history = useRef<{ back: Anchor[]; forward: Anchor[] }>({ back: [], forward: [] })
+
+  useEffect(() => {
+    history.current = { back: [], forward: [] }
+  }, [doc?.id])
+
+  const jumpTo = useCallback((p: number, yFraction: number) => {
+    const viewer = viewerRef.current
+    if (!viewer) return
+    const h = history.current
+    h.back.push(viewer.getAnchor())
+    if (h.back.length > MAX_HISTORY) h.back.shift()
+    h.forward = []
+    viewer.scrollToPage(p, yFraction)
+  }, [])
+
+  const stepHistory = useCallback((direction: 'back' | 'forward') => {
+    const viewer = viewerRef.current
+    if (!viewer) return
+    const h = history.current
+    const [from, to] = direction === 'back' ? [h.back, h.forward] : [h.forward, h.back]
+    const target = from.pop()
+    if (!target) return
+    to.push(viewer.getAnchor())
+    viewer.scrollToPage(target.page, target.within)
+  }, [])
+
+  const openExternal = useCallback((url: string) => {
+    window.api.app.openExternal(url).catch(() => {
+      setNotice({ tone: 'error', message: `Could not open ${url}` })
+    })
+  }, [])
+
+  const onLinkClick = useCallback(
+    (target: LinkTarget) => {
+      const viewer = viewerRef.current
+      if (!loaded || !viewer) return
+      switch (target.kind) {
+        case 'external':
+          openExternal(target.url)
+          return
+        case 'dest':
+          void resolveDestination(loaded.pdf, target.dest).then((r) => {
+            if (r) jumpTo(r.page, r.yFraction ?? 0)
+          })
+          return
+        case 'named': {
+          const current = viewer.getAnchor().page
+          const last = loaded.pdf.numPages
+          if (target.action === 'GoBack') stepHistory('back')
+          else if (target.action === 'GoForward') stepHistory('forward')
+          else if (target.action === 'NextPage') viewer.scrollToPage(Math.min(last, current + 1))
+          else if (target.action === 'PrevPage') viewer.scrollToPage(Math.max(1, current - 1))
+          else if (target.action === 'FirstPage') jumpTo(1, 0)
+          else jumpTo(last, 0)
+        }
+      }
+    },
+    [loaded, openExternal, jumpTo, stepHistory]
+  )
+
+  // The extra mouse buttons, as in a browser.
+  useEffect(() => {
+    const onMouseUp = (e: MouseEvent): void => {
+      if (e.button === 3) stepHistory('back')
+      else if (e.button === 4) stepHistory('forward')
+    }
+    window.addEventListener('mouseup', onMouseUp)
+    return () => window.removeEventListener('mouseup', onMouseUp)
+  }, [stepHistory])
+
   // ---- search navigation --------------------------------------------------
   const goToHit = useCallback(
     (index: number) => {
@@ -245,6 +324,11 @@ export function App(): React.JSX.Element {
         return
       }
       if (typing) return
+      if (e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+        e.preventDefault()
+        stepHistory(e.key === 'ArrowLeft' ? 'back' : 'forward')
+        return
+      }
       if (e.key === 'F3') {
         e.preventDefault()
         if (e.shiftKey) search.prev()
@@ -253,15 +337,23 @@ export function App(): React.JSX.Element {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [openDialog, search])
+  }, [openDialog, search, stepHistory])
+
+  // Chromium's own Ctrl+wheel zoom scales the whole UI, toolbar and all. The
+  // viewer handles the gesture itself; everywhere else it must simply do nothing.
+  useEffect(() => {
+    const onWheel = (e: WheelEvent): void => {
+      if (e.ctrlKey || e.metaKey) e.preventDefault()
+    }
+    window.addEventListener('wheel', onWheel, { passive: false })
+    return () => window.removeEventListener('wheel', onWheel)
+  }, [])
 
   const zoomBy = (direction: 1 | -1): void => {
-    setScale((current) => {
-      const i = ZOOM_STEPS.findIndex((z) => z >= current - 1e-6)
-      const next = Math.max(0, Math.min(ZOOM_STEPS.length - 1, (i === -1 ? 3 : i) + direction))
-      return ZOOM_STEPS[next]
-    })
+    setScale((current) => stepZoom(current, direction))
   }
+
+  const onZoom = useCallback((next: number) => setScale(clampZoom(next)), [])
 
   // ---- render -------------------------------------------------------------
   if (!doc) {
@@ -451,7 +543,8 @@ export function App(): React.JSX.Element {
                 {tab === 'outline' && loaded && (
                   <OutlinePanel
                     pdf={loaded.pdf}
-                    onNavigate={(p, y) => viewerRef.current?.scrollToPage(p, y)}
+                    onNavigate={jumpTo}
+                    onOpenUrl={openExternal}
                   />
                 )}
               </div>
@@ -474,7 +567,9 @@ export function App(): React.JSX.Element {
             pendingColor={pendingColor}
             onCreateHighlight={createHighlight}
             onHighlightClick={onHighlightClick}
+            onLinkClick={onLinkClick}
             onPositionChange={onPositionChange}
+            onZoom={onZoom}
             handleRef={viewerRef}
           />
         )}

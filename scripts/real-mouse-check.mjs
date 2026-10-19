@@ -254,10 +254,16 @@ async function main() {
 
     const seam = await ev(`
       const view = document.querySelector('.viewer').getBoundingClientRect();
+      // A press on a link follows it rather than starting a selection, so the
+      // drag must begin on plain text. It still crosses page 1's links on the
+      // way down, which is the case that has to keep working.
+      const links = [...document.querySelectorAll('.link-layer .link')].map(l => l.getBoundingClientRect());
+      const underLink = (r) => links.some(l =>
+        r.left < l.right && r.right > l.left && r.top < l.bottom && r.bottom > l.top);
       const lines = (page) => [...document.querySelectorAll('.page[data-page="' + page + '"] .textLayer span')]
         .filter(s => s.textContent.trim().length > 10)
         .map(s => ({ el: s, r: s.getBoundingClientRect() }))
-        .filter(({ r }) => r.top > view.top && r.bottom < view.bottom);
+        .filter(({ r }) => r.top > view.top && r.bottom < view.bottom && !underLink(r));
       const top = lines(1), bottom = lines(2);
       if (!top.length || !bottom.length) return null;
       const from = top[top.length - 1], to = bottom[0];

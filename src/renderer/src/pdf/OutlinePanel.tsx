@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
 import { Icon } from '../ui/Icon'
+import { resolveDestination } from './destinations'
 
 export interface OutlineNode {
   title: string
@@ -22,43 +23,16 @@ export async function buildOutline(pdf: PDFDocumentProxy): Promise<OutlineNode[]
   if (!raw) return []
 
   const resolveNode = async (item: RawOutline[number]): Promise<OutlineNode> => {
-    let page: number | null = null
-    let yFraction: number | null = null
-
-    try {
-      // getDestination() still returns an array (unlike getDestinations(), which
-      // became a Map in pdf.js 6).
-      const explicit =
-        typeof item.dest === 'string' ? await pdf.getDestination(item.dest) : item.dest
-
-      if (Array.isArray(explicit) && explicit.length > 0) {
-        const ref = explicit[0]
-        const pageIndex =
-          typeof ref === 'number' ? ref : await pdf.getPageIndex(ref as Parameters<PDFDocumentProxy['getPageIndex']>[0])
-        page = pageIndex + 1
-
-        // An XYZ / FitH destination carries a `top` in PDF user space.
-        const kind = (explicit[1] as { name?: string } | undefined)?.name
-        const top = kind === 'XYZ' ? explicit[3] : kind === 'FitH' || kind === 'FitBH' ? explicit[2] : null
-        if (typeof top === 'number') {
-          const pageProxy = await pdf.getPage(page)
-          const view = pageProxy.view
-          const height = view[3] - view[1]
-          if (height > 0) yFraction = clamp01((view[3] - top) / height)
-        }
-      }
-    } catch {
-      /* an unresolvable destination just becomes a non-navigable row */
-    }
-
+    // An unresolvable destination just becomes a non-navigable row.
+    const resolved = await resolveDestination(pdf, item.dest)
     const children = await Promise.all((item.items ?? []).map(resolveNode))
     return {
       title: item.title ?? '',
       bold: Boolean(item.bold),
       italic: Boolean(item.italic),
       children,
-      page,
-      yFraction,
+      page: resolved?.page ?? null,
+      yFraction: resolved?.yFraction ?? null,
       url: item.url ?? null
     }
   }
@@ -66,17 +40,17 @@ export async function buildOutline(pdf: PDFDocumentProxy): Promise<OutlineNode[]
   return Promise.all(raw.map(resolveNode))
 }
 
-function clamp01(v: number): number {
-  return v < 0 ? 0 : v > 1 ? 1 : v
+type RowActions = {
+  onNavigate: (page: number, yFraction: number) => void
+  /** Bookmarks can point at a web address instead of a page. */
+  onOpenUrl: (url: string) => void
 }
 
 export function OutlinePanel({
   pdf,
-  onNavigate
-}: {
-  pdf: PDFDocumentProxy
-  onNavigate: (page: number, yFraction: number) => void
-}): React.JSX.Element {
+  onNavigate,
+  onOpenUrl
+}: { pdf: PDFDocumentProxy } & RowActions): React.JSX.Element {
   const [nodes, setNodes] = useState<OutlineNode[] | null>(null)
 
   useEffect(() => {
@@ -97,7 +71,7 @@ export function OutlinePanel({
   return (
     <>
       {nodes.map((n, i) => (
-        <OutlineRow key={i} node={n} depth={0} onNavigate={onNavigate} />
+        <OutlineRow key={i} node={n} depth={0} onNavigate={onNavigate} onOpenUrl={onOpenUrl} />
       ))}
     </>
   )
@@ -106,12 +80,9 @@ export function OutlinePanel({
 function OutlineRow({
   node,
   depth,
-  onNavigate
-}: {
-  node: OutlineNode
-  depth: number
-  onNavigate: (page: number, yFraction: number) => void
-}): React.JSX.Element {
+  onNavigate,
+  onOpenUrl
+}: { node: OutlineNode; depth: number } & RowActions): React.JSX.Element {
   const [open, setOpen] = useState(depth < 1)
   const hasChildren = node.children.length > 0
 
@@ -122,6 +93,7 @@ function OutlineRow({
         style={{ paddingLeft: 4 + depth * 14 }}
         onClick={() => {
           if (node.page !== null) onNavigate(node.page, node.yFraction ?? 0)
+          else if (node.url) onOpenUrl(node.url)
         }}
       >
         <span
@@ -139,16 +111,24 @@ function OutlineRow({
           style={{
             fontWeight: node.bold ? 600 : 400,
             fontStyle: node.italic ? 'italic' : undefined,
-            opacity: node.page === null ? 0.5 : 1
+            opacity: node.page === null && !node.url ? 0.5 : 1
           }}
-          title={node.page !== null ? `Page ${node.page}` : 'Destination unavailable'}
+          title={
+            node.page !== null ? `Page ${node.page}` : (node.url ?? 'Destination unavailable')
+          }
         >
           {node.title}
         </span>
       </div>
       {open &&
         node.children.map((c, i) => (
-          <OutlineRow key={i} node={c} depth={depth + 1} onNavigate={onNavigate} />
+          <OutlineRow
+            key={i}
+            node={c}
+            depth={depth + 1}
+            onNavigate={onNavigate}
+            onOpenUrl={onOpenUrl}
+          />
         ))}
     </div>
   )

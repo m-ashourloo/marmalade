@@ -1,8 +1,8 @@
 /**
  * Node fallback for scripts/make-fixtures.py, which needs reportlab — not
  * installable on a machine whose Python has no pip. Emits the same sample.pdf
- * the harnesses assert against: 60 A4 pages, one unique marker per page, and a
- * two-level bookmark outline.
+ * the harnesses assert against: 60 A4 pages, one unique marker per page, a
+ * two-level bookmark outline, and two links on page 1.
  *
  *   node scripts/make-fixtures.mjs <out-dir>
  *
@@ -40,6 +40,21 @@ function wrap(text, width) {
 /** Escape the three characters that terminate a PDF literal string. */
 const esc = (s) => s.replace(/[\\()]/g, (c) => `\\${c}`)
 
+// Page 1's links, below the marker. The internal one goes through a named
+// destination, as hyperref writes them; the outline already covers explicit ones.
+const LINK_TARGET = 'link-target'
+const LINK_TARGET_PAGE = 31
+const LINK_TARGET_TOP = 500
+const LINKS = [
+  { y: 120, text: 'Internal link: go to page 31', action: `/Dest (${LINK_TARGET})` },
+  {
+    y: 100,
+    text: 'External link: visit example.com',
+    action: '/A << /S /URI /URI (https://example.com/) >>'
+  }
+]
+const linkRect = (y) => `[70 ${y - 3} 250 ${y + 12}]`
+
 function contentFor(page) {
   const section = Math.floor((page - 1) / 10) + 1
   const parts = [
@@ -58,6 +73,9 @@ function contentFor(page) {
       esc(`Distinctive marker for page ${page}: ${marker}.`) +
       ') Tj ET'
   )
+  if (page === 1) {
+    for (const link of LINKS) parts.push(`BT /F1 11 Tf 72 ${link.y} Td (${esc(link.text)}) Tj ET`)
+  }
   return parts.join('\n')
 }
 
@@ -79,6 +97,11 @@ function build() {
     '<< /Title (Sample Technical Manual) /Author (Fixture Generator) >>'
   )
 
+  const annotIds = LINKS.map(
+    (link) =>
+      add(`<< /Type /Annot /Subtype /Link /Rect ${linkRect(link.y)} /Border [0 0 0] ${link.action} >>`)
+  )
+
   const pageIds = []
   for (let p = 1; p <= PAGES; p++) {
     const stream = contentFor(p)
@@ -89,7 +112,9 @@ function build() {
       add(
         `<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 ${W} ${H}] ` +
           `/Resources << /Font << /F1 ${f1} 0 R /F2 ${f2} 0 R >> >> ` +
-          `/Contents ${contentId} 0 R >>`
+          `/Contents ${contentId} 0 R` +
+          (p === 1 ? ` /Annots [${annotIds.map((i) => `${i} 0 R`).join(' ')}]` : '') +
+          ' >>'
       )
     )
   }
@@ -125,7 +150,9 @@ function build() {
   })
 
   objects[catalogId - 1] =
-    `<< /Type /Catalog /Pages ${pagesId} 0 R /Outlines ${outlinesId} 0 R /PageMode /UseOutlines >>`
+    `<< /Type /Catalog /Pages ${pagesId} 0 R /Outlines ${outlinesId} 0 R /PageMode /UseOutlines ` +
+    `/Names << /Dests << /Names [(${LINK_TARGET}) ` +
+    `[${pageIds[LINK_TARGET_PAGE - 1]} 0 R /XYZ 0 ${LINK_TARGET_TOP} null]] >> >> >>`
   objects[pagesId - 1] =
     `<< /Type /Pages /Count ${PAGES} /Kids [${pageIds.map((i) => `${i} 0 R`).join(' ')}] >>`
   objects[outlinesId - 1] =

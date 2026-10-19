@@ -200,7 +200,10 @@ button.primary {
 :root[data-ui-theme='light'] button.primary {
   color: #fffdf8;
 }
+/* Restates the fill: the generic button:hover rule outranks button.primary and
+   would otherwise swap the amber for --bg-input under the dark ink. */
 button.primary:hover:not(:disabled) {
+  background: var(--accent);
   filter: brightness(1.08);
 }
 button.outline {
@@ -367,6 +370,17 @@ textarea:focus {
   min-width: 0;
 }
 
+/* Sized only during a Ctrl+wheel gesture, to keep the scroll extent open. */
+.zoom-extent {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .page {
   position: relative;
   margin: 0 auto var(--s-5);
@@ -420,6 +434,26 @@ textarea:focus {
   position: absolute;
   pointer-events: auto;
   cursor: pointer;
+}
+
+/* Same tier as the hit layer: both sit above the text layer, and neither is
+   ever filtered, so links stay invisible on a dimmed or inverted page. */
+.link-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  overflow: hidden;
+  pointer-events: none;
+}
+.link-layer .link {
+  position: absolute;
+  pointer-events: auto;
+  cursor: pointer;
+  border-radius: 2px;
+}
+.link-layer .link:hover {
+  background: rgba(91, 157, 255, 0.14);
+  box-shadow: inset 0 -2px 0 rgba(91, 157, 255, 0.7);
 }
 
 .search-hit-layer {

@@ -19,9 +19,12 @@
  *   eval <js>           run JS in the renderer; body of an async fn, use `return`
  *   click <selector>    REAL mouse click at the element's centre
  *   clicktext <label>   REAL click on the button with this exact label
+ *   hover <selector>    REAL pointer move to the element's centre, no button held
  *   drag <selector>     REAL press-drag-release across an element (selects text)
  *   type <text>         REAL character key events into the focused element
  *   key <combo>         e.g. Escape, Enter, F3, ctrl+f
+ *   wheel <sel> <dy> [ctrl]  REAL wheel event at the element's centre; with
+ *                       ctrl it is what a mouse Ctrl+wheel or a touchpad pinch sends
  *   set <sel> <value>   set an input/range value (React-safe)
  *   ss [name]           screenshot into the out dir
  *   sleep <ms>          wait
@@ -198,6 +201,14 @@ async function realClick(selector) {
   say(`clicked ${selector}`)
 }
 
+async function realHover(selector) {
+  const b = await boxOf(selector)
+  // Not through mouse(): that holds the left button, which would be a drag.
+  await rpc('Input.dispatchMouseEvent', { type: 'mouseMoved', x: b.x, y: b.y, button: 'none', buttons: 0 })
+  await sleep(200)
+  say(`hovering ${selector}`)
+}
+
 /**
  * A real press-drag-release. Synthetic events and document.createRange() both
  * bypass the browser's hit-testing and its mousedown handlers, so only this path
@@ -227,6 +238,23 @@ async function realDrag(selector) {
   await sleep(600)
   const sel = await ev(`return (window.getSelection()?.toString() ?? '').slice(0, 80);`)
   say(`dragged across ${selector} -> selected: ${JSON.stringify(sel)}`)
+}
+
+async function realWheel(rest) {
+  const m = rest.match(/^(.+?)\s+(-?[\d.]+)(\s+ctrl)?$/)
+  if (!m) throw new Error('usage: wheel <selector> <deltaY> [ctrl]')
+  const [, selector, dy, ctrl] = m
+  const b = await boxOf(selector)
+  await rpc('Input.dispatchMouseEvent', {
+    type: 'mouseWheel',
+    x: b.x,
+    y: b.y,
+    deltaX: 0,
+    deltaY: Number(dy),
+    modifiers: ctrl ? 2 : 0
+  })
+  await sleep(50)
+  say(`wheel ${dy}${ctrl ? ' +ctrl' : ''} over ${selector}`)
 }
 
 const KEYS = {
@@ -349,9 +377,11 @@ async function run(line) {
     case 'eval': return say(JSON.stringify(await ev(rest), null, 2))
     case 'click': return realClick(rest)
     case 'clicktext': return clickText(rest)
+    case 'hover': return realHover(rest)
     case 'drag': return realDrag(rest)
     case 'type': return typeText(rest)
     case 'key': return pressKey(rest)
+    case 'wheel': return realWheel(rest)
     case 'set': return setValue(rest)
     case 'ss': return screenshot(rest || undefined)
     case 'sleep': return sleep(Number(rest || 500))

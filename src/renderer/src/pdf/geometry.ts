@@ -69,6 +69,22 @@ export function normRectToViewport(n: NormRect, viewport: ViewportLike, box: Pag
   }
 }
 
+/**
+ * A rectangle in PDF user space — an annotation's `/Rect` — normalised against the
+ * crop box, so it can be laid out with normRectToViewport like any highlight.
+ * The spec allows the two corners in either order, and producers do use both.
+ */
+export function pdfRectToNorm(rect: number[], box: PageBox): NormRect {
+  const bw = box[2] - box[0]
+  const bh = box[3] - box[1]
+  return {
+    x0: clamp01((Math.min(rect[0], rect[2]) - box[0]) / bw),
+    y0: clamp01((Math.min(rect[1], rect[3]) - box[1]) / bh),
+    x1: clamp01((Math.max(rect[0], rect[2]) - box[0]) / bw),
+    y1: clamp01((Math.max(rect[1], rect[3]) - box[1]) / bh)
+  }
+}
+
 /** DOMRect (viewport/client coordinates) to page-container-relative coordinates. */
 export function clientRectToPageRect(client: DOMRect, pageRect: DOMRect): Rect {
   return {

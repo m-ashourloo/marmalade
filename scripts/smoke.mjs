@@ -91,6 +91,27 @@ class Cdp {
     }
   }
 
+  /** A real press and release, not element.click(), which fires no mousedown. */
+  async click(x, y) {
+    await this.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y })
+    await this.send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', clickCount: 1 })
+    await this.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 1 })
+  }
+
+  /** A real key press with Alt held, e.g. altKey('ArrowLeft', 37). */
+  async altKey(key, keyCode) {
+    const base = { key, code: key, windowsVirtualKeyCode: keyCode, modifiers: 1 }
+    await this.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', ...base })
+    await this.send('Input.dispatchKeyEvent', { type: 'keyUp', ...base })
+  }
+
+  /** A real wheel event; with ctrl it is also what a touchpad pinch arrives as. */
+  async wheel(x, y, deltaY, { ctrl = false } = {}) {
+    await this.send('Input.dispatchMouseEvent', {
+      type: 'mouseWheel', x, y, deltaX: 0, deltaY, modifiers: ctrl ? 2 : 0
+    })
+  }
+
   close() {
     this.#ws.close()
   }
@@ -336,6 +357,74 @@ async function main() {
       `started on p${startPage}, got ${drift.join(' ')}`
     )
 
+    // ---- Ctrl+wheel / pinch zoom ------------------------------------------
+    // The point under the cursor must stay under the cursor, and the gesture
+    // must zoom the document, not the window (Chromium's default).
+    const probeCursor = `
+      const v = document.querySelector('.viewer');
+      const r = v.getBoundingClientRect();
+      const x = r.left + r.width / 2, y = r.top + r.height / 2;
+      const p = [...document.querySelectorAll('.page')].find(p => {
+        const b = p.getBoundingClientRect(); return b.top <= y && b.bottom >= y;
+      });
+      const b = p?.getBoundingClientRect();
+      return { x, y, frac: b ? (y - b.top) / b.height : null, pageW: b?.width ?? null,
+               top: v.scrollTop, dpr: window.devicePixelRatio,
+               zoom: [...document.querySelectorAll('.toolbar span')]
+                       .map(s => s.textContent).find(t => /%/.test(t)) ?? null };`
+    const beforeWheel = await cdp.eval(probeCursor)
+    for (let i = 0; i < 3; i++) await cdp.wheel(beforeWheel.x, beforeWheel.y, -100, { ctrl: true })
+    const afterWheel = await waitFor(
+      cdp,
+      probeCursor,
+      (v) => v.zoom !== beforeWheel.zoom,
+      { label: 'ctrl+wheel zoom', timeout: 5000 }
+    )
+    log('ctrl+wheel', JSON.stringify({ before: beforeWheel, after: afterWheel }))
+    check('ctrl+wheel zooms the document',
+      afterWheel.pageW > beforeWheel.pageW * 1.3, JSON.stringify(afterWheel))
+    check('ctrl+wheel keeps the point under the cursor',
+      Math.abs(afterWheel.frac - beforeWheel.frac) < 0.01,
+      `${beforeWheel.frac} -> ${afterWheel.frac}`)
+    check('ctrl+wheel does not zoom the window', afterWheel.dpr === beforeWheel.dpr,
+      `dpr ${beforeWheel.dpr} -> ${afterWheel.dpr}`)
+
+    await cdp.wheel(afterWheel.x, afterWheel.y, 300)
+    const plain = await waitFor(cdp, probeCursor, (v) => v.top !== afterWheel.top,
+      { label: 'plain wheel', timeout: 3000 })
+    await sleep(300)
+    const plainSettled = await cdp.eval(probeCursor)
+    check('plain wheel scrolls without zooming',
+      plain.top !== afterWheel.top && plainSettled.zoom === afterWheel.zoom,
+      JSON.stringify(plainSettled))
+
+    // Zooming out from a page wider than the view: the scroller's extent shrinks
+    // under the preview, and the page used to be shoved sideways as it clamped.
+    for (let i = 0; i < 8; i++) await cdp.wheel(plainSettled.x, plainSettled.y, 40, { ctrl: true })
+    const zoomedOut = await waitFor(
+      cdp,
+      `const v = document.querySelector('.viewer').getBoundingClientRect();
+       const p = [...document.querySelectorAll('.page')]
+         .map(p => p.getBoundingClientRect()).find(b => b.bottom > v.top && b.top < v.bottom);
+       return { zoom: [...document.querySelectorAll('.toolbar span')]
+                        .map(s => s.textContent).find(t => /%/.test(t)) ?? null,
+                offCentre: Math.round((p.left + p.right) / 2 - (v.left + document.querySelector('.viewer').clientWidth / 2)),
+                fits: p.width < document.querySelector('.viewer').clientWidth };`,
+      (v) => v.zoom !== plainSettled.zoom,
+      { label: 'ctrl+wheel zoom out', timeout: 5000 }
+    )
+    check('ctrl+wheel zoom-out leaves a narrow page centred',
+      zoomedOut.fits && Math.abs(zoomedOut.offCentre) <= 2, JSON.stringify(zoomedOut))
+
+    // Later checks assume the zoom the button sequence left behind.
+    for (let i = 0; i < 12; i++) {
+      const z = await cdp.eval(`return [...document.querySelectorAll('.toolbar span')]
+        .map(s => s.textContent).find(t => /%/.test(t)) ?? null;`)
+      if (z === beforeWheel.zoom) break
+      await cdp.eval(`document.querySelector('.toolbar [data-act="zoom-in"]').click(); return true;`)
+      await sleep(150)
+    }
+
     // ---- search ----------------------------------------------------------
     await cdp.eval(`
       [...document.querySelectorAll('.sidebar-tabs button')].find(b => b.textContent.includes('Search')).click();
@@ -430,6 +519,90 @@ async function main() {
     check('outline tree built', outlineRows.rows > 5, JSON.stringify(outlineRows))
     check('outline navigates to the right page', outline.page === '31', JSON.stringify(outline))
     await cdp.screenshot(`${OUT}/07-outline.png`)
+
+    // ---- links ---------------------------------------------------------------
+    // Page 1 of the fixture carries an internal link (named destination, XYZ on
+    // page 31) and an external one. Scrolling there directly is not a jump, so
+    // the link click is the only history entry this step adds.
+    await cdp.eval(`document.querySelector('.viewer').scrollTop = 0; return true;`)
+    const links = await waitFor(
+      cdp,
+      `
+      const page = document.querySelector('.page[data-page="1"]');
+      const els = [...(page?.querySelectorAll('.link-layer .link') ?? [])];
+      const internal = els.find(e => e.dataset.linkKind === 'dest');
+      // The links sit at the foot of the page, below the fold at most zooms.
+      internal?.scrollIntoView({ block: 'center' });
+      const span = [...(page?.querySelectorAll('.textLayer span') ?? [])]
+        .find(s => s.textContent.includes('Internal link'));
+      const box = (e) => { const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; };
+      return {
+        count: els.length,
+        hrefs: els.map(e => e.dataset.href ?? null),
+        internal: internal ? box(internal) : null,
+        span: span ? box(span) : null
+      };
+      `,
+      (v) => v.count >= 2 && v.internal && v.span,
+      { label: 'link layer', timeout: 20000 }
+    )
+    log('links', JSON.stringify(links))
+    check('link annotations rendered on page 1', links.count >= 2, JSON.stringify(links))
+    check('external link carries its url', links.hrefs.includes('https://example.com/'),
+      JSON.stringify(links.hrefs))
+    // At the zoom left over from the zoom step, so this also proves the links
+    // are re-laid out from normalised geometry rather than captured once.
+    const spanMid = links.span ? links.span.y + links.span.h / 2 : -1
+    check('link rect sits over its text line',
+      links.internal && links.span &&
+        spanMid > links.internal.y && spanMid < links.internal.y + links.internal.h &&
+        links.span.x >= links.internal.x - 2,
+      JSON.stringify(links))
+    await cdp.screenshot(`${OUT}/07b-links.png`)
+
+    if (links.internal) {
+      await cdp.click(links.internal.x + 20, links.internal.y + links.internal.h / 2)
+    }
+    const followed = await waitFor(
+      cdp,
+      `
+      const viewer = document.querySelector('.viewer').getBoundingClientRect();
+      const p31 = document.querySelector('.page[data-page="31"]').getBoundingClientRect();
+      return {
+        page: document.querySelector('.page-input')?.value ?? null,
+        within: (viewer.top - p31.top) / p31.height
+      };
+      `,
+      (v) => v.page === '31',
+      { label: 'follow link', timeout: 15000 }
+    )
+    log('followed', JSON.stringify(followed))
+    check('internal link navigates to its page', followed.page === '31', JSON.stringify(followed))
+    // The destination's top is y=500 on an 842pt page, ~41% of the way down.
+    // The viewer's padding offsets this a little, hence the tolerance.
+    check('internal link lands on the destination line',
+      followed.within > 0.3 && followed.within < 0.5, JSON.stringify(followed))
+
+    const pageNow = `return { page: document.querySelector('.page-input')?.value ?? null };`
+    await cdp.altKey('ArrowLeft', 37)
+    const back = await waitFor(cdp, pageNow, (v) => v.page === '1', { label: 'alt+left', timeout: 10000 })
+    check('Alt+Left returns to where the link was clicked', back.page === '1', JSON.stringify(back))
+    await cdp.altKey('ArrowRight', 39)
+    const fwd = await waitFor(cdp, pageNow, (v) => v.page === '31', { label: 'alt+right', timeout: 10000 })
+    check('Alt+Right goes forward again', fwd.page === '31', JSON.stringify(fwd))
+
+    // The external click itself is not driven: it would open a real browser.
+    const refused = await cdp.eval(`
+      const tryOpen = (u) => window.api.app.openExternal(u).then(() => 'opened', () => 'refused');
+      return {
+        js: await tryOpen('javascript:alert(1)'),
+        file: await tryOpen('file:///etc/passwd'),
+        custom: await tryOpen('ms-settings:privacy')
+      };
+    `)
+    check('openExternal refuses non-web schemes',
+      refused.js === 'refused' && refused.file === 'refused' && refused.custom === 'refused',
+      JSON.stringify(refused))
 
     // ---- reading modes -----------------------------------------------------
     const modeProbe = `
@@ -649,11 +822,12 @@ async function main() {
       .split('\n')
       .filter((l) => /error|Error|SEVERE/.test(l))
       .filter((l) => !/devtools|DevTools|Autofill|GPU|gpu_|dxgi|Vulkan|cache|Request Autofill/i.test(l))
-      // The malformed-import checks above provoke these on purpose.
+      // The malformed-import and refused-scheme checks above provoke these on purpose.
       .filter(
         (l) =>
           !/handler for 'transfer:inspect'.*(not valid JSON|not a Marmalade annotations export)/.test(l)
       )
+      .filter((l) => !/handler for 'app:openExternal': ZodError/.test(l))
     log('filtered console errors:', consoleErrors.length)
     for (const e of consoleErrors.slice(0, 12)) log('  |', e.trim())
     check('no unexpected console errors', consoleErrors.length === 0)
